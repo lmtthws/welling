@@ -1,0 +1,275 @@
+{
+	"auto_complete":
+	{
+		"selected_items":
+		[
+			[
+				"Calculation",
+				"CalculateConditionalMutualInfo"
+			],
+			[
+				"Calcu",
+				"CalculateConditionalMutualInfo"
+			],
+			[
+				"NaiveBa",
+				"NaiveBayesOutcomeNode"
+			],
+			[
+				"theirVal",
+				"theirValCount"
+			],
+			[
+				"Ca",
+				"CalculateConditionalProb"
+			],
+			[
+				"Get",
+				"GetTrainingCounts"
+			],
+			[
+				"Class",
+				"ClassificaationVal"
+			],
+			[
+				"Calss",
+				"ClassificationVal"
+			],
+			[
+				"disc",
+				"discount_rate"
+			],
+			[
+				"substit",
+				"substitutedInitialCondition"
+			],
+			[
+				"MakeSymbolSub",
+				"MakeSymbolSubstitutionPairForStep"
+			]
+		]
+	},
+	"buffers":
+	[
+	],
+	"build_system": "",
+	"build_system_choices":
+	[
+	],
+	"build_varint": "",
+	"command_palette":
+	{
+		"height": 137.0,
+		"last_filter": "",
+		"selected_items":
+		[
+			[
+				"package control",
+				"Package Control: Disable Package"
+			],
+			[
+				"install",
+				"Package Control: Install Package"
+			],
+			[
+				"pac",
+				"Package Control: Remove Package"
+			],
+			[
+				"inst",
+				"Package Control: Install Package"
+			],
+			[
+				"disable",
+				"Package Control: Disable Package"
+			],
+			[
+				"Pack",
+				"Install Package Control"
+			]
+		],
+		"width": 412.0
+	},
+	"console":
+	{
+		"height": 0.0,
+		"history":
+		[
+		]
+	},
+	"distraction_free":
+	{
+		"menu_visible": true,
+		"show_minimap": false,
+		"show_open_files": false,
+		"show_tabs": false,
+		"side_bar_visible": false,
+		"status_bar_visible": false
+	},
+	"expanded_folders":
+	[
+		"/G/Projects/ebode",
+		"/G/Projects/ebode/WebServer",
+		"/G/Projects/ebode/WebServer/src"
+	],
+	"file_history":
+	[
+		"/G/Projects/ebode/.todo",
+		"/G/Projects/ebode/WebServer/Cargo.toml",
+		"/G/Projects/ebode/WebServer/src/main.rs",
+		"/G/Projects/ebode/.git/COMMIT_EDITMSG",
+		"/G/Projects/ebode/ebode.sublime-project",
+		"/C/Users/lmtthws/AppData/Roaming/Sublime Text 3/Packages/User/RustAutoComplete.sublime-settings",
+		"/G/GoogleDrive/Google Drive/working/UW_Capstone/ucs760/Assignments/2-Bayes/Bayes/Bayes.py",
+		"/G/GoogleDrive/Google Drive/working/UW_Capstone/ucs760/Assignments/2-Bayes/Bayes/Bayes",
+		"/G/GoogleDrive/Google Drive/working/UW_Capstone/ucs760/Assignments/3-NN/NN/nnet",
+		"/G/GoogleDrive/Google Drive/working/UW_Capstone/ucs760/Assignments/3-NN/NN/logistic",
+		"/G/GoogleDrive/Google Drive/working/UW_Capstone/ucs760/Assignments/2-Bayes/lymph_tan.txt",
+		"/G/GoogleDrive/Google Drive/working/UW_Capstone/ucs760/Assignments/2-Bayes/Bayes/__init__.py",
+		"/G/GoogleDrive/Google Drive/working/UW_Capstone/ucs760/Assignments/1-ID3/Dt-Learn/dt-learn",
+		"/G/GoogleDrive/Google Drive/working/UW_Capstone/ucs760/Assignments/2-Bayes/Bayes/Bayes.py-brokeItAgain.py",
+		"/G/GoogleDrive/Google Drive/working/UW_Capstone/ucs760/Assignments/2-Bayes/Bayes/Bayes.py.bak-itsWorking.py",
+		"/G/GoogleDrive/Google Drive/working/UW_Capstone/ucs760/Assignments/1-ID3/Dt-Learn/curve_data_generator.py",
+		"/G/GoogleDrive/Google Drive/working/UW_Capstone/ucs760/Assignments/1-ID3/Dt-Learn/dt-learn.py",
+		"/G/GoogleDrive/Google Drive/working/UW_Capstone/ucs760/Assignments/1-ID3/credit_train.arff",
+		"/G/GoogleDrive/Google Drive/working/UW_Capstone/ucs760/Assignments/1-ID3/credit_test.arff",
+		"/G/GoogleDrive/Google Drive/working/UW_Capstone/ucs760/Assignments/1-ID3/Dt-Learn/smallTest.arff",
+		"/G/GoogleDrive/Google Drive/working/UW_Capstone/ucs760/Assignments/1-ID3/credit_m=5.txt",
+		"/G/GoogleDrive/Google Drive/working/UW_Capstone/ucs760/Assignments/1-ID3/credit_m=30.txt",
+		"/G/GoogleDrive/Google Drive/working/UW_Capstone/ucs760/Assignments/1-ID3/credit_m=10.txt",
+		"/G/GoogleDrive/Google Drive/working/UW_Capstone/ucs704/Assignments/Assignment3-20170504/k-induction/kinduction.py",
+		"/G/GoogleDrive/Google Drive/working/UW_Capstone/ucs841/Assignments/Assgn3/rlpyth.py",
+		"/G/GoogleDrive/Google Drive/working/UW_Capstone/ucs704/Assignments/Assignment3-20170504/k-induction/z3/z3-x64/bin/python/example.py",
+		"/G/GoogleDrive/Google Drive/working/UW_Capstone/ucs704/Assignments/Assignment1-20170227/Prog1/IO.ml",
+		"/G/GoogleDrive/Google Drive/working/UW_Capstone/ucs704/Assignments/Assignment3-20170504/k-induction/z3-x86/bin/python/z3/__init__.py",
+		"/G/GoogleDrive/Google Drive/working/UW_Capstone/ucs704/Assignments/Assignment1-20170227/Prog1/DeBruijn.ml",
+		"/G/GoogleDrive/Google Drive/working/UW_Capstone/ucs704/Assignments/Assignment1-20170227/Prog1/Lambda.ml",
+		"/G/GoogleDrive/Google Drive/working/UW_Capstone/ucs704/Assignments/Assignment1-20170227/Prog1/Notes/Assgnment notes",
+		"/G/GoogleDrive/Google Drive/working/UW_Capstone/ucs704/Assignments/Assignment1-20170227/Prog1/Notes/Ocaml notes",
+		"/C/z3/z3-x86/bin/python/example.py",
+		"/G/GoogleDrive/Google Drive/working/UW_Capstone/ucs704/Assignments/Assignment3-20170504/k-induction/z3-x86/bin/python/example.py",
+		"/G/GoogleDrive/Google Drive/working/UW_Capstone/ucs704/Assignments/Assignment3-20170504/k-induction/z3-x86/bin/python/z3/__init__.pyc",
+		"/C/Users/lmtthws/AppData/Local/Temp/Rar$DIa0.148/example.py",
+		"/G/GoogleDrive/Google Drive/working/UW_Capstone/ucs704/Assignments/Assignment1-20170227/Prog1/ToDeBruijnRepl.byte"
+	],
+	"find":
+	{
+		"height": 27.0
+	},
+	"find_in_files":
+	{
+		"height": 0.0,
+		"where_history":
+		[
+		]
+	},
+	"find_state":
+	{
+		"case_sensitive": false,
+		"find_history":
+		[
+		],
+		"highlight": true,
+		"in_selection": false,
+		"preserve_case": false,
+		"regex": false,
+		"replace_history":
+		[
+		],
+		"reverse": false,
+		"show_context": true,
+		"use_buffer2": true,
+		"whole_word": false,
+		"wrap": true
+	},
+	"groups":
+	[
+		{
+			"sheets":
+			[
+			]
+		}
+	],
+	"incremental_find":
+	{
+		"height": 27.0
+	},
+	"input":
+	{
+		"height": 40.0
+	},
+	"layout":
+	{
+		"cells":
+		[
+			[
+				0,
+				0,
+				1,
+				1
+			]
+		],
+		"cols":
+		[
+			0.0,
+			1.0
+		],
+		"rows":
+		[
+			0.0,
+			1.0
+		]
+	},
+	"menu_visible": true,
+	"output.find_results":
+	{
+		"height": 0.0
+	},
+	"pinned_build_system": "",
+	"project": "ebode.sublime-project",
+	"replace":
+	{
+		"height": 50.0
+	},
+	"save_all_on_build": true,
+	"select_file":
+	{
+		"height": 0.0,
+		"last_filter": "",
+		"selected_items":
+		[
+		],
+		"width": 0.0
+	},
+	"select_project":
+	{
+		"height": 0.0,
+		"last_filter": "",
+		"selected_items":
+		[
+		],
+		"width": 0.0
+	},
+	"select_symbol":
+	{
+		"height": 0.0,
+		"last_filter": "",
+		"selected_items":
+		[
+		],
+		"width": 0.0
+	},
+	"selected_group": 0,
+	"settings":
+	{
+	},
+	"show_minimap": true,
+	"show_open_files": true,
+	"show_tabs": true,
+	"side_bar_visible": true,
+	"side_bar_width": 189.0,
+	"status_bar_visible": true,
+	"template_settings":
+	{
+	}
+}
