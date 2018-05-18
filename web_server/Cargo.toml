@@ -4,3 +4,4 @@ version = "0.1.0"
 authors = ["Luke Matthews <lmtthws@gmail.com>"]
 
 [dependencies]
+thread_pool = { path = "../thread_pool" }
