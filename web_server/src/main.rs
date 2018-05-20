@@ -7,11 +7,15 @@ use std::fs::File;
 use std::thread;
 use std::time::Duration;
 use thread_pool::ThreadPool;
+use std::process;
 
 
 fn main() {
 	let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
-	let _pool = ThreadPool::new(4);
+	let _pool = ThreadPool::new(4).unwrap_or_else(|err| {
+		eprintln!("{}", err.message);
+		process::exit(1);
+	});
 
 	for stream in listener.incoming(){
 		let stream = stream.unwrap();
