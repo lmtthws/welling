@@ -1,7 +1,17 @@
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
+
+pub struct ThreadPool {
+	_num: usize,
+}
+
+impl ThreadPool {
+	pub fn new(count: usize) -> ThreadPool {
+		ThreadPool{
+			_num:  count
+		}
+	}
+
+	pub fn execute<F>(&self, _f: F) 
+		where F: FnOnce() + Send + 'static {
+
+	}
 }
