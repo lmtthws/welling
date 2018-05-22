@@ -1,13 +1,39 @@
 use std::thread;
-
+use std::sync::mpsc;
+use std::sync::Arc;
+use std::sync::Mutex;
 
 pub struct ThreadPool {
-	_num: usize,
-	_threads: Vec<thread::JoinHandle<()>>,
+	num: usize,
+	threads: Vec<Worker>,
+	sender: mpsc::Sender<Job>
 }
 
 pub struct PoolCreationError<'a> {
 	pub message: &'a str
+}
+
+type JobReceiver<T> = Arc<Mutex<mpsc::Receiver<T>>>;
+
+struct Worker {
+	id: usize,
+	handle: thread::JoinHandle<()>,
+}
+
+impl Worker {
+	fn new(id: usize, receiver: JobReceiver<Job>) -> Worker {
+		Worker {
+			id,
+			handle: thread::spawn(|| {
+				receiver;
+			}),
+		}
+	}
+}
+
+
+
+struct Job {
 }
 
 
@@ -25,15 +51,20 @@ impl ThreadPool {
 			return Err(PoolCreationError{ message: "Thread count must be grater than 0"});
 		}
 
-		let threads = Vec::with_capacity(count);
+		let mut threads = Vec::with_capacity(count);
 
-		for _ in 0..count {
+		let (sender, receiver) = mpsc::channel();
+		let receiver = Arc::new(Mutex::new(receiver));
 
+
+		for id in 0..count {
+			threads.push(Worker::new(id, Arc::clone(&receiver)));
 		}
 
 		Ok(ThreadPool{
-			_num:  count,
-			_threads: threads
+			num:  count,
+			threads,
+			sender
 		})
 	}
 
