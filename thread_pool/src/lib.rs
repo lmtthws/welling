@@ -4,8 +4,8 @@ use std::sync::Arc;
 use std::sync::Mutex;
 
 pub struct ThreadPool {
-	num: usize,
-	threads: Vec<Worker>,
+	_num: usize,
+	_threads: Vec<Worker>,
 	sender: mpsc::Sender<Job>
 }
 
@@ -16,25 +16,40 @@ pub struct PoolCreationError<'a> {
 type JobReceiver<T> = Arc<Mutex<mpsc::Receiver<T>>>;
 
 struct Worker {
-	id: usize,
-	handle: thread::JoinHandle<()>,
+	_id: usize,
+	_handle: thread::JoinHandle<()>,
 }
+
+trait FnBox {
+	fn call_box(self: Box<Self>);
+}
+
+impl<F: FnOnce()> FnBox for F {
+	fn call_box(self: Box<F>) {
+		(*self)()
+	}
+}
+
+type Job = Box<FnBox + Send + 'static>;
+
 
 impl Worker {
 	fn new(id: usize, receiver: JobReceiver<Job>) -> Worker {
 		Worker {
-			id,
-			handle: thread::spawn(|| {
-				receiver;
+			_id: id,
+			_handle: thread::spawn(move || {
+				loop {
+					let job = receiver.lock().unwrap().recv().unwrap();
+
+					println!("Worker {} got a job; executing.", id);
+
+					job.call_box();
+				}
 			}),
 		}
 	}
 }
 
-
-
-struct Job {
-}
 
 
 impl ThreadPool {
@@ -62,14 +77,16 @@ impl ThreadPool {
 		}
 
 		Ok(ThreadPool{
-			num:  count,
-			threads,
+			_num:  count,
+			_threads: threads,
 			sender
 		})
 	}
 
-	pub fn execute<F>(&self, _f: F) 
+	pub fn execute<F>(&self, f: F) 
 		where F: FnOnce() + Send + 'static {
+			let job = Box::new(f);
 
+			self.sender.send(job).unwrap();
 	}
 }
