@@ -3,9 +3,14 @@ name = "thread_pool"
 version = "0.1.0"
 
 [[package]]
+name = "uri"
+version = "0.1.0"
+
+[[package]]
 name = "web_server"
 version = "0.1.0"
 dependencies = [
  "thread_pool 0.1.0",
+ "uri 0.1.0",
 ]
 

@@ -1,0 +1,6 @@
+[package]
+name = "uri"
+version = "0.1.0"
+authors = ["lmtthws <lmtthws@gmail.com>"]
+
+[dependencies]
