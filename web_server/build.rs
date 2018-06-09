@@ -4,16 +4,25 @@ use std::path::Path;
 use std::io;
 
 fn main() {
-	let out_path = Path::new("..\\target").join(env::var("PROFILE").unwrap());
-	println!("{}", out_path.to_str().unwrap());
-	let out_path = out_path.join("views");
+	// let args: Vec<String> = env::args().collect();
+	// println!("{}", args);
+
+	let base_out_path = Path::new("..\\target").join(env::var("PROFILE").unwrap());
+	println!("{}", base_out_path.to_str().unwrap());
 	
-	if out_path.exists() {
-		fs::remove_dir_all(&out_path).unwrap();
+	for path in vec!["views", "scripts" ]
+	{
+		let out_path = &base_out_path.join(path);
+		
+		if out_path.exists() {
+			fs::remove_dir_all(&out_path).unwrap();
+		}
+
+		let view_dir = Path::new("./").join(path);
+		
+		copy_dir_contents(&out_path, &view_dir).unwrap();
 	}
 
-	let view_dir = Path::new("./views");
-	copy_dir_contents(&out_path, view_dir).unwrap();
 }
 
 fn copy_dir_contents(out_dir: &Path, src_dir: &Path) -> io::Result<()> {

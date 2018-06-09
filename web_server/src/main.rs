@@ -1,19 +1,20 @@
-
-mod routing;
-mod http;
 extern crate thread_pool;
 extern crate uri;
 
 use std::fs::File;
 use thread_pool::ThreadPool;
 use std::process;
-use uri::*;
 use std::net::TcpListener;
 use std::net::TcpStream;
 use std::io::prelude::*;
 use std::thread;
 use std::time::Duration;
 
+#[macro_use]
+mod routing;
+mod http;
+
+use routing::Routable;
 
 use http::parser;
 use http::request::StartLine;
@@ -69,12 +70,17 @@ fn main() {
 // route files used to initialize web server on startup for allowed verb/string combos
 // would still need to have handlers in there somehow...
 
+//TODO: parse the headers to get content length
+// only read from the stream if post body is longer than what is read so far
+//TODO: handle different request content types
+
 
 fn handle_connection(mut stream: TcpStream) {
 
 	let start_line: StartLine;
+	let _buf: Vec<u8>;
 	match parser::get_start_line(&mut stream) {
-		Ok((s, _)) => start_line = s,
+		Ok((s, b)) => {start_line = s; _buf = b; },
 		Err(_) => {
 			let response = format!("{}{}",500,"Unable to parse starting line");
 			stream.write(response.as_bytes()).unwrap();
@@ -89,56 +95,67 @@ fn handle_connection(mut stream: TcpStream) {
 		println!("{} {} HTTP/{}.{}", start_line.method, start_line.uri, start_line.major_version, start_line.minor_version);
 	}
 	
-	let get = StartLine {
-		method: AllowedMethod::GET,
-		uri: Uri {
-			scheme: None,
-			path: HierarchicalPart {
-				authority: None,
-				path_components: vec!(String::new())
-			},
-			query: None,
-			fragment: None,
+	let get = get!("/");
+	let sleep = get!("/sleep");
+	let test = post!("/test/post");
+
+	let response: String;
+
+	match start_line.method {
+		AllowedMethod::GET => {
+			let (status, content): (&str, String) = if start_line == get {
+				("HTTP/1.1 200 OK\r\n\r\n", "./views/Index.html".to_string())
+			} else if start_line == sleep {
+				thread::sleep(Duration::from_secs(5));
+				("HTTP/1.1 200 OK\r\n\r\n", "./views/Index.html".to_string())
+			} else if start_line.uri.path.path_components.starts_with(&[String::from("scripts")]) {
+				println!("Script request received: {}", start_line.uri);
+				let script_path: String = format!("./{}", start_line.uri.path.path_components.join("/"));
+				("HTTP/1.1 200 OK\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n", script_path)		
+			} else {
+				("HTTP/1.1 404 NOT FOUND\r\n\r\n", "Error_404.html".to_string())
+			};
+
+			let response_temp = read_static_content(&content).unwrap();
+			response = format!("{}{}",status,response_temp);
 		},
-		major_version: 1,
-		minor_version: 1
-	};
-	let sleep = StartLine {
-		method: AllowedMethod::GET,
-		uri: Uri {
-			scheme: None,
-			path: HierarchicalPart {
-				authority: None,
-				path_components: vec!(String::from("sleep"))
-			},
-			query: None,
-			fragment: None,
-		},
-		major_version: 1,
-		minor_version: 1
-	};
-	
-	let (status, content) = if start_line == get {
-		("HTTP/1.1 200 OK\r\n\r\n", &"Index.html")
-	} else if start_line == sleep {
-		thread::sleep(Duration::from_secs(5));
-		("HTTP/1.1 200 OK\r\n\r\n", &"Index.html")
-	} else {
+	 	AllowedMethod::POST => {
+	 		println!("Got a post");
+	 			println!("emptying request stream");
 
-		("HTTP/1.1 404 NOT FOUND\r\n\r\n", &"Error_404.html")
-	};
+	 			let local_buf: &mut [u8] = &mut [0_u8; 512];
+	 			stream.set_read_timeout(Some(Duration::new(1,0))).expect("This should onlt fail if I passed in zero");
+				match stream.read(local_buf)
+				{
+					_ => (),
+				}
 
-	let response = read_static_response(content).unwrap();
-	let response = format!("{}{}",status,response);
+				let local_buf = local_buf.to_vec();	
+				println!("{}", String::from_utf8(local_buf.clone()).expect("Failed to read buffer into string"));
 
-	println!("response returned");
+			
+	 		
+
+	 		
+	 		if start_line == test {
+	 			response = String::from("HTTP/1.1 200 OK\r\n\
+	 									Content-Type: application/json; charset=UTF-8\r\n\
+	 									\r\n\
+	 									{\"test\": \"POST successful\" }");
+	 		} else {
+	 			response = String::from("HTTP/1.1 401 Unauthorized\r\n\r\n");
+	 		}
+	 	} 
+	}
+
+
+	println!("response returned: {}", response);
 	stream.write(response.as_bytes()).unwrap();
 	stream.flush().unwrap();
-	
 }
 
-fn read_static_response(response_name: &str) -> std::io::Result<String> {
-	let mut file = File::open(format!("./views/{}", response_name))?;
+fn read_static_content(response_path: &str) -> std::io::Result<String> {
+	let mut file = File::open(response_path)?;
 
 	let mut contents = String::new();
 
