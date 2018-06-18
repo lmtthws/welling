@@ -17,6 +17,7 @@ mod http;
 use routing::Routable;
 
 use http::parser;
+use http::http_context::HttpContext;
 use http::request::StartLine;
 use http::request::AllowedMethod;
 
@@ -74,17 +75,18 @@ fn main() {
 // only read from the stream if post body is longer than what is read so far
 //TODO: handle different request content types
 
+//manage the parse via a struct
 
-fn handle_connection(mut stream: TcpStream) {
+fn handle_connection(stream: TcpStream) {
 
 	let start_line: StartLine;
 	let _buf: Vec<u8>;
-	match parser::get_start_line(&mut stream) {
-		Ok((s, b)) => {start_line = s; _buf = b; },
+	let mut context = HttpContext::from_stream(stream);
+	match context.get_start_line() {
+		Ok(s) => start_line = s,
 		Err(_) => {
 			let response = format!("{}{}",500,"Unable to parse starting line");
-			stream.write(response.as_bytes()).unwrap();
-			stream.flush().unwrap();
+			context.send_response(response);
 			return;
 		}
 	};
@@ -99,6 +101,7 @@ fn handle_connection(mut stream: TcpStream) {
 	let sleep = get!("/sleep");
 	let test = post!("/test/post");
 
+	context.flush_request();	
 	let response: String;
 
 	match start_line.method {
@@ -121,22 +124,7 @@ fn handle_connection(mut stream: TcpStream) {
 		},
 	 	AllowedMethod::POST => {
 	 		println!("Got a post");
-	 			println!("emptying request stream");
-
-	 			let local_buf: &mut [u8] = &mut [0_u8; 512];
-	 			stream.set_read_timeout(Some(Duration::new(1,0))).expect("This should onlt fail if I passed in zero");
-				match stream.read(local_buf)
-				{
-					_ => (),
-				}
-
-				let local_buf = local_buf.to_vec();	
-				println!("{}", String::from_utf8(local_buf.clone()).expect("Failed to read buffer into string"));
-
-			
-	 		
-
-	 		
+ 		 		
 	 		if start_line == test {
 	 			response = String::from("HTTP/1.1 200 OK\r\n\
 	 									Content-Type: application/json; charset=UTF-8\r\n\
@@ -150,8 +138,7 @@ fn handle_connection(mut stream: TcpStream) {
 
 
 	println!("response returned: {}", response);
-	stream.write(response.as_bytes()).unwrap();
-	stream.flush().unwrap();
+	context.send_response(response);
 }
 
 fn read_static_content(response_path: &str) -> std::io::Result<String> {

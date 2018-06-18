@@ -2,5 +2,7 @@
 members = [
 	"web_server",
 	"thread_pool",
-	"uri"
+	"uri",
+	"database"
 ]
+

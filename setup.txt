@@ -1,0 +1,19 @@
+* install mingw or equivalent
+* download RUST using the -gnu compiler
+	triple: x86_64-pc-windows-gnu
+* set CARGO_HOME and RUSTUP_HOME environment variables (system wide, not just in cmd.exe session)
+* run the installer
+* Add G:\Rust\bin to the path
+
+Add'l setup:
+* cargo install racer
+* Add rust source path: rustup component add rust-src
+* rustup component add rustfmt-nightly
+
+
+Visual Studio Code: 
+rustup toolchain install nightly-x86_64-pc-windows-gnu
+use the (RLS) extension
+Configure the extension: rust-client.channel: "stable"
+Allow it to install RLS
+

@@ -1,0 +1,8 @@
+[package]
+name = "database"
+version = "0.1.0"
+authors = ["lmtth"]
+
+[dependencies]
+bitflags = "*"
+uri = { path = "../uri" }

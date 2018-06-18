@@ -1,3 +1,8 @@
+use std::net::ToSocketAddrs;
+use std::net::SocketAddr;
+use std::vec::IntoIter;
+use std::fmt::{Formatter, Display, Result};
+
 
 #[derive(PartialEq,Debug)]
 pub struct Uri {
@@ -111,10 +116,12 @@ impl Uri {
 			fragment
 		}
 	}
+
+	//TODO: implement read-only style mutators...
 }
 
-impl std::fmt::Display for Uri {
-	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl Display for Uri {
+	fn fmt(&self, f: &mut Formatter) -> Result {
 		let mut uri: String;
 
 		match self.scheme {
@@ -138,6 +145,18 @@ impl std::fmt::Display for Uri {
 	}
 }
 
+impl ToSocketAddrs for Uri {
+	type Iter = IntoIter<SocketAddr>;
+
+	fn to_socket_addrs(&self) -> std::io::Result<IntoIter<SocketAddr>> {
+		if let Some(ref host_and_port) = self.path.authority {
+			Ok(host_and_port.to_socket_addrs()?)
+		} else {
+			Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "URI does not contain authority information"))
+		}
+	}
+}
+
 
 #[derive(Debug,PartialEq)]
 pub struct HierarchicalPart {
@@ -146,8 +165,8 @@ pub struct HierarchicalPart {
 }
 
 
-impl std::fmt::Display for HierarchicalPart {
-	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl Display for HierarchicalPart {
+	fn fmt(&self, f: &mut Formatter) -> Result {
 		let mut authority: String;
 		match self.authority {
 			Some(ref a) => authority = a.to_string(),
@@ -168,8 +187,8 @@ pub struct Authority {
 	pub port: Option<usize>
 }
 
-impl std::fmt::Display for Authority {
-	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl Display for Authority {
+	fn fmt(&self, f: &mut Formatter) -> Result {
 		let mut auth: String;
 
 		match self.userinfo {
@@ -190,6 +209,23 @@ impl std::fmt::Display for Authority {
 		}
 
 		write!(f, "{}", auth)
+	}
+}
+
+impl ToSocketAddrs for Authority {
+	type Iter = IntoIter<SocketAddr>;
+
+	fn to_socket_addrs(&self) -> std::io::Result<IntoIter<SocketAddr>> {
+		if let Some(ref host) = self.host {
+			if let Some(port) = self.port {
+				let socks = (host.as_str(), port as u16).to_socket_addrs()?;
+				Ok(socks)
+			} else {
+				Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "URI did not specify a port number"))
+			}
+		} else {
+			Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "URI did not specify a host name"))
+		}
 	}
 }
 
