@@ -1,43 +1,14 @@
-use mysql::packets::handshake::{RequestV10, Response41};
+extern crate ring;
+
+pub mod capabilities;
+
+use mysql::packets::handshake::request::RequestV10;
+use mysql::packets::ReadFromBuffer;
 use ::std::net::TcpStream;
 use {DatabaseClient, ConnectionInfo};
+use ::std::io::BufReader;
 
-bitflags! {
-    pub(crate) struct Capabilities: u32 {
-        const CLIENT_LONG_PASSWORD = 1;
-        const CLIENT_FOUND_ROWS = 2;
-        const CLIENT_LONG_FLAG = 4;
-        const CLIENT_CONNECT_WITH_DB = 8;
-        const CLIENT_NO_SCHEMA = 16;
-        const CLIENT_COMPRESS = 32;
-        //const client_odbc = 64; //-unused since version 3.22
-        const CLIENT_LOCAL_FILES = 128;
-        const CLIENT_IGNORE_SPACE = 256;
-        const CLIENT_PROTOCOL_41 = 512;
-        const CLIENT_INTERACTIVE = 1024;
-        const CLIENT_SSL = 2048;
-        const CLIENT_IGNORE_SIGPIPE = 4096;
-        const CLIENT_TRANSACTIONS = 8192;
-        //const client_reserved = 16384;  //no longer used
-        //const client_reserved2 = 32768; //no longer used
-        const CLIENT_MULTI_STATEMENTS = 1_u32 << 16;
-        const CLIENT_MULTI_RESULTS = 1_u32 << 17;
-        const CLIENT_PS_MULTI_RESULTS = 1_u32 << 18;
-        const CLIENT_PLUGIN_AUTH = 1_u32 << 19;
-        const CLIENT_CONNECT_ATTRS = 1_u32 << 20;
-        const CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA = 1_u32 << 21;
-        const CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS = 1_u32 << 22;
-        const CLIENT_SESSION_TRACK = 1_u32 << 23;
-        const CLIENT_DEPRECATE_EOF = 1_u32 << 24;
-        const CLIENT_SSL_VERIFY_SERVER_CERT = 1_u32 << 30;
-        const CLIENT_OPTIONAL_RESULTSET_METADATA = 1_u32 << 25;
-        const CLIENT_REMEMBER_OPTIONS = 1_u32 << 31;
-    }
-}
 
-pub(crate) fn server_has_capability(server_handshake: RequestV10, capability: Capabilities) -> bool {
-    (server_handshake.capabilities & capability.bits()) == capability.bits()
-}
 
 pub(crate) struct MySqlClient {
     server_details: ConnectionInfo,
@@ -53,15 +24,6 @@ impl MySqlClient {
     }
 }
 
-trait MySqlConnector {
-    fn Connect(&mut self) -> Result<RequestV10, String>;
-}
-
-impl MySqlConnector for TcpStream {
-    fn Connect(&mut self) -> Result<RequestV10, String> {
-        RequestV10::read(self)
-    }
-}
 /*
     pub capabilities: u32,
     pub max_packet_size: u32,
@@ -75,20 +37,63 @@ impl MySqlConnector for TcpStream {
 */
 
 impl DatabaseClient for MySqlClient {
-   
-    fn Connect(&mut self) -> Result<(),String> {
+    fn connect(&mut self) -> Result<(),String> {
         if let Ok(mut stream) = TcpStream::connect(&self.server_details.uri) {
-            let request: RequestV10 = stream.Connect()?;
+            {
+            let mut reader = BufReader::new(&mut stream);
+            
+            let request: RequestV10 = RequestV10::read(&mut reader)?;
+
+            //if guess of auth method by server does not match, when we send our response, we may get a AuthSwitchRequest
+
+            // If the client doesn't plugins, the defaulting is different
+            // if client does not support client_secure_connection, as is true here atm, then we'll only use Old Password Authenticaiton
+            // if we're doing protocol 4.1 and we support secure_connection, then we'll do Native Authentication
+            // but we support plugins, so it's moot.
+
+            //Native method - move this to authentication module
+            let pass_hash = ring::digest::digest(&ring::digest::SHA1, b"the password");
+            let pass_hash = pass_hash.as_ref();
+           
+           
+            let mut server_bytes: Vec<u8> = vec!(); 
+            
+            let auth_plugin = request.auth_plugin.unwrap();
+            let server_auth_data = auth_plugin.auth_data.as_bytes();
+            if server_auth_data.len() != 20 {
+                return Err(String::from("Expected 20 bytes of auth data from server for native auth"));
+            }
+            server_bytes.extend_from_slice(server_auth_data); //verify 20 bytes of auth data
+           
+           //concat with the SHA1 hash of the SHA1 hash of the password
+            let hash_of_pass_hash = &ring::digest::digest(&ring::digest::SHA1, &pass_hash[0..]);
+            server_bytes.extend_from_slice(hash_of_pass_hash.as_ref()); //20 server bytes + SHA1 of SHA1 of password
+
+            //take the sha1 of the concatenation
+            let server_bytes = ring::digest::digest(&ring::digest::SHA1, &server_bytes[0..]);
+            let server_bytes = server_bytes.as_ref(); 
+
+            //XOR with the original SHA password hash
+            let mut auth_data: [u8;5] = [0; 5];
+            for (ix,(u1,u2)) in pass_hash.into_iter().zip(server_bytes).enumerate() {
+                auth_data[ix] = u1 ^ u2;
+            }
+            
 
             //TODO: initialize the response
             // also, we should try to do as much as we can with Traits and local functions. Trying to store values in structs and then chain methods is not great unless we wrap the whole thing.
 
             //response.write_to_stream(stream);
 
+            //we should get an OK packet from the server at the end of this if auth was successful
+            }
             self.connection_stream = Some(stream);
             Ok(())
         } else {
             return Err(String::from("Unable to open TCP connection to designated host"))
         }
+
+
     }
 }
+

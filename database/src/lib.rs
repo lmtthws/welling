@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate bitflags;
 extern crate uri;
+extern crate ring;
 
 use mysql::client::MySqlClient;
 use uri::Uri;
@@ -9,26 +10,26 @@ pub mod mysql;
 
 pub struct ConnectionInfo {
     uri: Uri,
-    username: String,
-    password: String
+    _username: String,
+    _password: String
 }
 
-pub  fn GetClient(clientType: SupportedClient, server_details: ConnectionInfo) -> Box<DatabaseClient> {
-    match clientType {
-        MYSQL => Box::new(MySqlClient::new(server_details))
+pub fn get_client(client_type: SupportedClient, server_details: ConnectionInfo) -> Box<DatabaseClient> {
+    match client_type {
+        SupportedClient::MySQL => Box::new(MySqlClient::new(server_details))
     }
 }
 
 pub trait DatabaseClient {
-    fn Connect(&mut self) -> Result<(),String>;
+    fn connect(&mut self) -> Result<(),String>;
 }
 
 pub enum SupportedClient {
-    MYSQL
+    MySQL
 }
 
 pub trait AuthCredentials {
-    fn GetCredentials() -> String;
+    fn get_credentials() -> String;
 }
 
 

@@ -16,7 +16,6 @@ mod http;
 
 use routing::Routable;
 
-use http::parser;
 use http::http_context::HttpContext;
 use http::request::StartLine;
 use http::request::AllowedMethod;
