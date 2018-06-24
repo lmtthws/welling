@@ -2,35 +2,59 @@ use std::io::BufReader;
 use std::io::BufRead;
 use std::io::Read;
 
-use mysql::packets::protocol_types::u24;
+use mysql::packets::protocol_types::*;
+
+//TODO: make the buf reader operations safer - if the stream terminates or the packet is not well formed, things may not go well, especially for read_exact
+
+enum Endian {
+    Little,
+    Big
+}
 
 trait ProtocolTypeConverter {
     fn to_u8(&self) -> u8;
-    fn to_u16(&self) -> u16;
-    fn to_u24(&self) -> u24;
-    fn to_u32(&self) -> u32;
+    fn to_u16(&self, order: Endian) -> u16;
+    fn to_u24(&self, order: Endian) -> u24;
+    fn to_u32(&self, order: Endian) -> u32;
+    fn to_u64(&self, order: Endian) -> u64;
     fn to_pstring(&self) -> Result<String,String>;
 }
-
 
 impl ProtocolTypeConverter for Vec<u8> {
     fn to_u8(&self) -> u8 {
         self[0]
     }
 
-    fn to_u16(&self) -> u16 {
+    fn to_u16(&self, order: Endian) -> u16 {
         let temp: Vec<u16> = self.into_iter().map(|x| *x as u16).collect();
-        temp[1] << 8 | temp[0]
+        match order {
+            Endian::Little => (temp[1] << 8 | temp[0]) & 0xFFFF,
+            Endian::Big => (temp[0] << 8 | temp[1]) & 0xFFFF
+        }
     }
 
-    fn to_u24(&self) -> u24 {
+    fn to_u24(&self, order: Endian) -> u24 {
         let temp: Vec<u32> = self.into_iter().map(|x| *x as u32).collect();
-        u24((temp[2] << 16) | (temp[1] << 8) | temp[0])
+        match order {
+             Endian::Little => u24(((temp[2] << 16) | (temp[1] << 8) | temp[0]) & 0xFFFF_FF),
+             Endian::Big =>  u24(((temp[0] << 16) | (temp[1] << 8) | temp[2]) & 0xFFFF_FF)
+        }
     }
 
-    fn to_u32(&self) -> u32 {
-         let temp: Vec<u32> = self.into_iter().map(|x| *x as u32).collect();
-        (temp[3] << 24) | (temp[2] << 16) | (temp[1] << 8) | temp[0]
+    fn to_u32(&self, order: Endian) -> u32 {
+        let temp: Vec<u32> = self.into_iter().map(|x| *x as u32).collect();
+        match order {
+            Endian::Little => ((temp[3] << 24) | (temp[2] << 16) | (temp[1] << 8) | temp[0]) & 0xFFFF_FFFF,
+            Endian::Big => ((temp[0] << 24) | (temp[1] << 16) | (temp[2] << 8) | temp[3]) & 0xFFFF_FFFF,
+        }
+    }
+
+    fn to_u64(&self, order: Endian) -> u64 {
+        let temp: Vec<u64> = self.into_iter().map(|x| *x as u64).collect();
+        match order {
+            Endian::Little => ((temp[7] << 56) | (temp[6] << 48) | (temp[5] << 40) | temp[4] << 32 | temp[3] << 24 | temp[2] << 16 | temp[1] << 8 | temp[0]) & 0xFFFF_FFFF_FFFF_FFFF,
+            Endian::Big => ((temp[0] << 56) | (temp[1] << 48) | (temp[2] << 40) | temp[3] << 32 | temp[4] << 24 | temp[5] << 16 | temp[6] << 8 | temp[7]) & 0xFFFF_FFFF_FFFF_FFFF,
+        }
     }
 
     fn to_pstring(&self) -> Result<String,String> {
@@ -45,14 +69,18 @@ pub trait ProtocolTypeReader{
     fn advance(&mut self, len: u8) ->Result<(),String>;
 
     fn next_u8(&mut self) -> Result<u8,String> ;
-    fn next_u16(&mut self) -> Result<u16,String> ;
+    fn next_u16(&mut self) -> Result<u16,String>;
     fn next_u24(&mut self) -> Result<u24,String>;
-    fn next_u32(&mut self) -> Result<u32,String> ;
-    fn next_fixed_string(&mut self, len: u8) -> Result<String,String> ;
-    fn next_null_string(&mut self) -> Result<String,String> ;
+    fn next_u32(&mut self) -> Result<u32,String>;
+    fn next_u64(&mut self) -> Result<u64,String>;
+    fn next_fixed_string(&mut self, len: u64) -> Result<String,String>;
+    fn next_null_string(&mut self) -> Result<String,String>;
+
+    fn next_length_integer(&mut self) -> Result<LengthInteger,String>;
+    fn next_length_string(&mut self) -> Result<LengthEncodedString,String>;
 }
 
-impl<R> ProtocolTypeReader for BufReader<R> where R: ::std::io::Read {
+impl<R> ProtocolTypeReader for BufReader<R> where R: ::std::io::Read { //we can optimize this based on max packet size (16mb or u24)
     fn advance(&mut self, len: u8) -> Result<(), String> {
         match read_exact(self, len) {
             Ok(_) => Ok(()),
@@ -65,22 +93,33 @@ impl<R> ProtocolTypeReader for BufReader<R> where R: ::std::io::Read {
         Ok(val)
     }
     fn next_u16(&mut self) -> Result<u16,String>  {
-        let val = read_exact(self, 2)?.to_u16();
+        let val = read_exact(self, 2)?.to_u16(Endian::Little);
         Ok(val)
     }
 
     fn next_u24(&mut self) -> Result<u24,String> {
-        let val = read_exact(self, 3)?.to_u24();
+        let val = read_exact(self, 3)?.to_u24(Endian::Little);
         Ok(val)
     }
 
     fn next_u32(&mut self) -> Result<u32,String> {
-        let val = read_exact(self, 4)?.to_u32();
+        let val = read_exact(self, 4)?.to_u32(Endian::Little);
         Ok(val)
     }
 
-    fn next_fixed_string(&mut self, len: u8) -> Result<String,String> {
-       read_exact(self, len)?.to_pstring()
+    fn next_u64(&mut self) -> Result<u64,String> {
+        let val = read_exact(self, 8)?.to_u64(Endian::Little);
+        Ok(val)
+    }
+
+    fn next_fixed_string(&mut self, len: u64) -> Result<String,String> {
+        let mut handle = self.take(len);
+        let mut string: Vec<u8> = Vec::new();
+        match handle.read_to_end(&mut string) {
+            Err(e) => return Err(format!("{}",e)),
+            _ => ()
+        }
+        string.to_pstring()
     }
 
     fn next_null_string(&mut self) -> Result<String,String> {
@@ -92,9 +131,34 @@ impl<R> ProtocolTypeReader for BufReader<R> where R: ::std::io::Read {
         
        next_string.to_pstring()
     }
+
+    fn next_length_integer(&mut self) -> Result<LengthInteger,String> {
+        let length = self.next_u8()?;
+        let val: u64;
+        match length {
+            LengthInteger::TWO_BYTE_PREFIX => val = read_exact(self, 2)?.to_u16(Endian::Big) as u64,
+            LengthInteger::THREE_BYTE_PREFIX => val = read_exact(self, 3)?.to_u24(Endian::Big).0 as u64,
+            LengthInteger::EIGHT_BYTE_PREFIX => val = read_exact(self, 8)?.to_u64(Endian::Big),
+            0xFF => return Err(String::from("Expected fixed length integer, but first byte was invalid (0xFF)")),
+            _ => val = length as u64
+        }
+
+        Ok(LengthInteger::new(val))
+    }
+
+    fn next_length_string(&mut self) -> Result<LengthEncodedString,String> {
+        let length = self.next_length_integer()?;
+        let string = self.next_fixed_string(length.value())?;
+
+        Ok(LengthEncodedString(length,string))
+    }
 }
 
 fn read_exact<R>(reader: &mut BufReader<R>, count: u8) -> Result<Vec<u8>,String> where R: ::std::io::Read {
+    if count == 0 {
+        return Ok(vec!())
+    }
+    
     let count = count as usize;
     let buffer = Vec::with_capacity(count);
     let mut buffer = buffer.into_boxed_slice();

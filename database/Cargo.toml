@@ -6,4 +6,6 @@ authors = ["lmtth"]
 [dependencies]
 ring = "^0"
 bitflags = "^1"
+log = "^0"
+simple_logger = "^0"
 uri = { path = "../uri" }

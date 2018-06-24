@@ -34,7 +34,7 @@ impl ProtocolIntConverter<FixedInteger> for u32 {
     }
 }
 
-fn get_bytes(num: u32) -> [u8;4] {
+pub fn get_bytes(num: u32) -> [u8;4] {
     let first : u8 = ((num >> 24) & 0xff) as u8;
     let second : u8 = ((num >> 16) & 0xff) as u8;
     let third : u8 = ((num >> 8) & 0xff) as u8;
@@ -47,30 +47,28 @@ trait ProtocolTypeConverter {
 }
 
 pub trait ProtocolTypeWriter {
-    fn write_u8(&mut self, int: u8) -> Result<(),String>;
-    fn write_u16(&mut self, int: u16) -> Result<(),String>;
-    fn write_u24(&mut self, int: u24) -> Result<(),String>;
-    fn write_u32(&mut self, int: u32) -> Result<(),String>;
+    fn write_u8(&mut self, int: u8) -> Result<(),::std::io::Error>;
+    fn write_u16(&mut self, int: u16) -> Result<(),::std::io::Error>;
+    fn write_u24(&mut self, int: u24) -> Result<(),::std::io::Error>;
+    fn write_u32(&mut self, int: u32) -> Result<(),::std::io::Error>;
 }
 
 impl<W> ProtocolTypeWriter for BufWriter<W> where W: Write {
-    fn write_u8(&mut self, int: u8) -> Result<(),String> {
+    fn write_u8(&mut self, int: u8) -> Result<(),::std::io::Error> {
         write_integer(self, &int.to_fixed_integer())
     }
-    fn write_u16(&mut self, int: u16) -> Result<(),String>{
+    fn write_u16(&mut self, int: u16) -> Result<(),::std::io::Error>{
         write_integer(self, &int.to_fixed_integer())
     }
-    fn write_u24(&mut self, int: u24) -> Result<(),String>{
+    fn write_u24(&mut self, int: u24) -> Result<(),::std::io::Error>{
         write_integer(self, &int.to_fixed_integer())
     }
-    fn write_u32(&mut self, int: u32) -> Result<(),String>{
+    fn write_u32(&mut self, int: u32) -> Result<(),::std::io::Error>{
         write_integer(self, &int.to_fixed_integer())
     }
 }
 
-fn write_integer<W: Write>(writer: &mut BufWriter<W>, int: &FixedInteger) -> Result<(),String> {
-        match write!(writer, "{}", int) {
-            Err(_) => Err(String::from("Failed to write to output buffer")),
-            _ => Ok(())
-        }
-    }
+fn write_integer<W: Write>(writer: &mut BufWriter<W>, int: &FixedInteger) -> Result<(),::std::io::Error> {
+    write!(writer, "{}", int)?;
+    Ok(())
+}

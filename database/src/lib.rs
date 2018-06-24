@@ -1,7 +1,11 @@
 #[macro_use]
 extern crate bitflags;
+#[macro_use]
+extern crate log;
+
 extern crate uri;
 extern crate ring;
+extern crate simple_logger;
 
 use mysql::client::MySqlClient;
 use uri::Uri;

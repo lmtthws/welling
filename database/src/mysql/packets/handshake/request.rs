@@ -2,7 +2,7 @@ use std::io::{BufReader, Read};
 use std::cmp;
 
 use mysql::packets::Header;
-use mysql::packets::ReadFromBuffer;
+use mysql::packets::ReadablePacket;
 use mysql::packets::protocol_reader::ProtocolTypeReader;
 
 pub struct RequestV10 {
@@ -12,7 +12,7 @@ pub struct RequestV10 {
     pub thread_id: u32,
     pub char_set: u8,
     pub status_flags: u16,
-    pub capabilities: u32,
+    pub capabilities: u32, //TODO: switch to strong type
     pub auth_plugin: Option<AuthPlugin>,
 }
 
@@ -21,7 +21,7 @@ pub struct AuthPlugin {
     pub auth_data: String,
 }
 
-impl ReadFromBuffer for RequestV10 {
+impl ReadablePacket for RequestV10 {
 
     fn read<R: Read>(reader: &mut BufReader<R>) -> Result<RequestV10,String> {
         let header = Header::read(reader)?;
@@ -58,7 +58,7 @@ impl ReadFromBuffer for RequestV10 {
         if 1_u32 == ((capabilities & (1 << 19)) >> 19 as u32) {
             let auth_data_len = cmp::max(13, auth_data_len - 8);
             let mut auth_data_plugin = vec!();
-            auth_data_plugin.extend_from_slice(reader.next_fixed_string(auth_data_len)?.as_bytes());
+            auth_data_plugin.extend_from_slice(reader.next_fixed_string(auth_data_len as u64)?.as_bytes());
             plugin_data.append(&mut auth_data_plugin);
             plugin_data.truncate(auth_data_len as usize);
             let auth_data: String;

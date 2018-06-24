@@ -1,14 +1,14 @@
 use std::fmt::Error;
 use std::fmt::Formatter;
-use std::net::TcpStream;
-use std::io::BufWriter;
-use std::io::Write;
+use std::io::{BufWriter, Write};
 use std::fmt::Display;
-
+use mysql::packets::Header;
+use mysql::packets::WriteablePacket;
 use mysql::packets::protocol_types::*;
 
 //verify Capabilities::client_protocol_41 else should do 320, but our server will support 41 and we support 41, so...
 pub struct Response41 {
+    pub header: Header,
     pub capabilities: u32,
     pub max_packet_size: u32,
     pub char_set: u8,
@@ -20,9 +20,10 @@ pub struct Response41 {
     pub connection_attributes: Option<ConnectAttributes> //if CLIENT_CONNECT_ATTRS in capabilities
 }
 
-impl Response41 {
-    pub fn write_to_stream(&self, stream: &mut TcpStream) -> Result<(),::std::io::Error> {
-       let mut writer = BufWriter::new(stream);
+impl WriteablePacket for Response41 {
+    fn write<W: Write>(&self, writer: &mut BufWriter<W>) -> Result<(),::std::io::Error> {
+    
+       self.header.write(writer)?;
        
        write!(writer, "{}", self.capabilities)?;
        write!(writer, "{}", self.max_packet_size)?;

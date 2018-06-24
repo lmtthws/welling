@@ -1,6 +1,8 @@
 extern crate ring;
+extern crate simple_logger;
 
 use mysql::packets::handshake::request::AuthPlugin;
+use mysql::packets::protocol_writer;
 use std::convert::From;
 use std::fmt::{Display, Formatter};
 use {ConnectionInfo};
@@ -46,6 +48,37 @@ impl SupportedAuthMethods {
     }
 }
 
+#[allow(dead_code)]
+fn old_password_hash(password: &str) -> [u8;8] {
+    let mut nr: u64  = 1_345_345_333;
+    let mut add: u64 = 7;
+    let mut nr2: u64 = 0x1234_5671;
+
+    for c in password.chars() { 
+        //Python impl: https://djangosnippets.org/snippets/1508/ - 
+        // that uses Code Points for each value in a string, but that covers 0 to 0x10FFFF, while Rust char covers 0 to 0xD7FF and 0xE000 to 0x10FFF - 
+        // so we miss 2304 potential values. I don't know enough about unicode to really get this - it's probably fine for your general ASCII-type passwords, but maybe someone was using emojis
+        let c = c as u64;
+        debug!("{}",c);
+        nr = nr ^ ((((nr & 63) + add) * c) + (nr << 8) & 0xFFFF_FFFF);
+        debug!("{}",nr);
+        nr2 = (nr2 + ((nr2 << 8) ^ nr)) & 0xFFFF_FFFF;
+        debug!("{}",nr2);
+        add = (add + c) & 0xFFFF_FFFF;
+        debug!("{}",add);
+    }
+
+    nr = nr & 0x7FFF_FFFF;
+    debug!("{}",nr);
+    nr2 = nr2 & 0x7FFF_FFFF;
+    debug!("{}",nr2);
+
+    let mut hash_bytes = [0_u8;8];
+    hash_bytes[0..4].clone_from_slice(&protocol_writer::get_bytes(nr as u32));
+    hash_bytes[4..8].clone_from_slice(&protocol_writer::get_bytes(nr2 as u32));
+
+    hash_bytes
+}
 
 fn native_password_hash(password: &str, auth_data: &str) -> Result<[u8;20],String> {
     let pass_hash = ring::digest::digest(&ring::digest::SHA1, password.as_bytes());
@@ -75,4 +108,31 @@ fn native_password_hash(password: &str, auth_data: &str) -> Result<[u8;20],Strin
     }
 
     return Ok(auth_data);
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+    #[test]
+    fn old_password_matches_expected_bananas() {
+        let _ = simple_logger::init();
+
+        debug!("Hello from your test");
+
+        let expected: [u8;8] = [96, 24, 120, 130, 46, 198, 121, 209];
+        let hash = old_password_hash("Bananas"); 
+        
+        assert_eq!(hash,expected); //"601878822ec679d1" - output from py code - hex
+    }
+
+    #[test]
+    fn old_password_matches_expected_unicode() {
+        let _ = simple_logger::init();
+
+        let expected: [u8;8] = [7, 111, 97, 159, 73, 8, 137, 121];
+        let hash = old_password_hash("y̆"); 
+        
+        assert_eq!(hash,expected); //"07 6f 61 9f 49 08 89 79" - output from py code
+    }
 }

@@ -3,7 +3,7 @@ pub mod authentication;
 
 use mysql::client::authentication::SupportedAuthMethods;
 use mysql::packets::handshake::request::RequestV10;
-use mysql::packets::ReadFromBuffer;
+use mysql::packets::ReadablePacket;
 use ::std::net::TcpStream;
 use {DatabaseClient, ConnectionInfo};
 use ::std::io::BufReader;
@@ -37,6 +37,7 @@ impl MySqlClient {
 */
 
 impl DatabaseClient for MySqlClient {
+    #[allow(dead_code)]
     fn connect(&mut self) -> Result<(),String> {
         if let Ok(mut stream) = TcpStream::connect(&self.server_details.uri) {
             {
@@ -53,7 +54,7 @@ impl DatabaseClient for MySqlClient {
 
             //Native method - move this to authentication module
             let auth_response = request.auth_plugin.unwrap();
-            let auth_response = SupportedAuthMethods::from(&auth_response.name[0..]).get_auth_response_value(&self.server_details, &auth_response);
+            let _auth_response = SupportedAuthMethods::from(&auth_response.name[0..]).get_auth_response_value(&self.server_details, &auth_response);
             
 
             //TODO: initialize the response

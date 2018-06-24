@@ -2,7 +2,7 @@ use std::fmt::{Display, Formatter, Error};
 
 #[allow(non_camel_case_types)]
 #[derive(Clone,Copy)]
-pub struct u24(pub u32);
+pub struct u24(pub u32); //TODO, implement math ops for this
 
 #[derive(Clone)]
 pub enum FixedInteger {
@@ -34,13 +34,17 @@ pub enum LengthInteger {
 }
 
 impl LengthInteger {
+    pub const TWO_BYTE_PREFIX: u8 = 0xFC;
+    pub const THREE_BYTE_PREFIX: u8 = 0xFD;
+    pub const EIGHT_BYTE_PREFIX: u8 = 0xFE;
+
     pub fn new(integer: u64) -> LengthInteger {
         if integer < 251 {
-            LengthInteger::U8(integer as u8)
+            LengthInteger::U8((integer & 0xFF) as u8)
         } else if integer < (1<<16) {
-            LengthInteger::U16(integer as u16)
+            LengthInteger::U16((integer & 0xFFFF) as u16)
         } else if integer < (1<<24) {
-            LengthInteger::U24(integer as u32)
+            LengthInteger::U24((integer & 0xFFFF_FF) as u32)
         } else {
            LengthInteger::U64(integer)
         }
@@ -48,10 +52,19 @@ impl LengthInteger {
     
     pub fn total_bytes(&self) -> u64 {
         match *self {
-            LengthInteger::U8(i) => 1 + i as u64,
-            LengthInteger::U16(i) => 3 + i as u64,
-            LengthInteger::U24(i) => 4 + i as u64,
-            LengthInteger::U64(i) => 9 + i
+            LengthInteger::U8(_) => 1,
+            LengthInteger::U16(_) => 3,
+            LengthInteger::U24(_) => 4,
+            LengthInteger::U64(_) => 9
+        }
+    }
+
+    pub fn value(&self) -> u64 {
+        match *self {
+            LengthInteger::U8(i) => i as u64,
+            LengthInteger::U16(i) => i as u64,
+            LengthInteger::U24(i) => i as u64,
+            LengthInteger::U64(i) => i
         }
     }
 }
@@ -60,9 +73,9 @@ impl Display for LengthInteger {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
        match *self {
             LengthInteger::U8(i) => write!(f,"{}",i)?,
-            LengthInteger::U16(i) => write!(f,"{}{}",0xFC,i)?,
-            LengthInteger::U24(i) => write!(f,"{}{}",0xFD,i)?,
-            LengthInteger::U64(i) => write!(f,"{}{}",0xFE,i)?
+            LengthInteger::U16(i) => write!(f,"{}{}",LengthInteger::TWO_BYTE_PREFIX,i)?, 
+            LengthInteger::U24(i) => write!(f,"{}{}",LengthInteger::THREE_BYTE_PREFIX,i)?,
+            LengthInteger::U64(i) => write!(f,"{}{}",LengthInteger::EIGHT_BYTE_PREFIX,i)?
         };
         Ok(())
     }
