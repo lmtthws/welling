@@ -1,7 +1,7 @@
-extern crate ring;
-
 pub mod capabilities;
+pub mod authentication;
 
+use mysql::client::authentication::SupportedAuthMethods;
 use mysql::packets::handshake::request::RequestV10;
 use mysql::packets::ReadFromBuffer;
 use ::std::net::TcpStream;
@@ -52,32 +52,8 @@ impl DatabaseClient for MySqlClient {
             // but we support plugins, so it's moot.
 
             //Native method - move this to authentication module
-            let pass_hash = ring::digest::digest(&ring::digest::SHA1, b"the password");
-            let pass_hash = pass_hash.as_ref();
-           
-           
-            let mut server_bytes: Vec<u8> = vec!(); 
-            
-            let auth_plugin = request.auth_plugin.unwrap();
-            let server_auth_data = auth_plugin.auth_data.as_bytes();
-            if server_auth_data.len() != 20 {
-                return Err(String::from("Expected 20 bytes of auth data from server for native auth"));
-            }
-            server_bytes.extend_from_slice(server_auth_data); //verify 20 bytes of auth data
-           
-           //concat with the SHA1 hash of the SHA1 hash of the password
-            let hash_of_pass_hash = &ring::digest::digest(&ring::digest::SHA1, &pass_hash[0..]);
-            server_bytes.extend_from_slice(hash_of_pass_hash.as_ref()); //20 server bytes + SHA1 of SHA1 of password
-
-            //take the sha1 of the concatenation
-            let server_bytes = ring::digest::digest(&ring::digest::SHA1, &server_bytes[0..]);
-            let server_bytes = server_bytes.as_ref(); 
-
-            //XOR with the original SHA password hash
-            let mut auth_data: [u8;5] = [0; 5];
-            for (ix,(u1,u2)) in pass_hash.into_iter().zip(server_bytes).enumerate() {
-                auth_data[ix] = u1 ^ u2;
-            }
+            let auth_response = request.auth_plugin.unwrap();
+            let auth_response = SupportedAuthMethods::from(&auth_response.name[0..]).get_auth_response_value(&self.server_details, &auth_response);
             
 
             //TODO: initialize the response

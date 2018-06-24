@@ -14,7 +14,6 @@ pub struct RequestV10 {
     pub status_flags: u16,
     pub capabilities: u32,
     pub auth_plugin: Option<AuthPlugin>,
-
 }
 
 pub struct AuthPlugin {

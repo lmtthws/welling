@@ -5,5 +5,5 @@ authors = ["lmtth"]
 
 [dependencies]
 ring = "^0"
-bitflags = "*"
+bitflags = "^1"
 uri = { path = "../uri" }

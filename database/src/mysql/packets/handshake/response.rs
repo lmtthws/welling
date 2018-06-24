@@ -14,7 +14,7 @@ pub struct Response41 {
     pub char_set: u8,
     //filler - 23 0s
     pub username: NullTerminatedString, //null-terminated
-    pub auth_response: AuthResponse,  //type of auth response determined by CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA capability
+    pub auth_response: LengthEncodedString,  //type of auth response determined by CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA capability - capability allows all lengths, else this is a u8+string
     pub init_database: Option<NullTerminatedString>, //if CLIENT_CONNECT_WITH_DB in capabilities - should be in char set from char_set field
     pub auth_plugin_name: Option<NullTerminatedString>, //if CLIENT_PLUGIN_AUTH; this is the method used to generate auth_response value - should be utf8
     pub connection_attributes: Option<ConnectAttributes> //if CLIENT_CONNECT_ATTRS in capabilities
@@ -43,28 +43,6 @@ impl Response41 {
        }
 
        Ok(())
-    }
-}
-
-
-
-pub enum AuthResponse {
-    Standard(LengthEncodedString),
-    Long(u32,String)
-}
-
-impl Display for AuthResponse {
-     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
-        match *self {
-           AuthResponse::Standard(ref ls) => {
-                write!(f,"{}", ls)?;
-                Ok(())
-           },
-           AuthResponse::Long(ref l, ref s) => {
-                write!(f,"{}{}",l,s)?;
-                Ok(())
-            }
-        }
     }
 }
 

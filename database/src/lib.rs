@@ -9,9 +9,9 @@ use uri::Uri;
 pub mod mysql;
 
 pub struct ConnectionInfo {
-    uri: Uri,
+    pub uri: Uri,
     _username: String,
-    _password: String
+    pub password: String
 }
 
 pub fn get_client(client_type: SupportedClient, server_details: ConnectionInfo) -> Box<DatabaseClient> {

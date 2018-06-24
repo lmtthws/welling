@@ -72,6 +72,13 @@ impl Display for LengthInteger {
 #[derive(Clone)]
 pub struct LengthEncodedString(pub LengthInteger, pub String);
 
+impl LengthEncodedString{
+    pub fn from(string: String) -> Self {
+        let len = LengthInteger::new(string.len() as u64);
+        LengthEncodedString(len, string)
+    }
+}
+
 impl Display for LengthEncodedString {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
         write!(f,"{}{}", self.0, self.1)?;

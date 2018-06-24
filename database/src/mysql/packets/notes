@@ -28,7 +28,7 @@ username
 
 Auth response:
  length
- 14 (=20 chars = SHA-1 hash length)
+ 14 (= 20 chars = SHA-1 hash length)
  response
  ab 09 ee f6 bc b1 32 
  3e 61 14 38 65 c0 99 1d    95 7d 75 d4 47 
