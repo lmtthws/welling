@@ -7,7 +7,6 @@ use std::convert::From;
 use std::fmt::{Display, Formatter};
 use {ConnectionInfo};
 
-
 pub enum SupportedAuthMethods {
     Unknown,
     MySQLOldPassword,
@@ -35,14 +34,24 @@ impl<'a> From<&'a str> for SupportedAuthMethods {
 }
 
 impl SupportedAuthMethods {
+    pub fn default() -> SupportedAuthMethods {
+        SupportedAuthMethods::MySQLOldPassword
+    }
 
-    pub fn get_auth_response_value(&self, connection_info: &ConnectionInfo, auth_data: &AuthPlugin ) -> Result<String,String> {
+    pub fn get_auth_response_value(&self, connection_info: &ConnectionInfo, auth_data: &Option<AuthPlugin> ) -> Result<String,String> {
         match *self {
             SupportedAuthMethods::Unknown => Err(String::from("should force disconnect")), //TODO: force disconnect...
-            SupportedAuthMethods::MySQLOldPassword => {Err(String::from("not yet implemented"))},
-            SupportedAuthMethods::MySQLNativePassword => {
-                let hash_bytes = native_password_hash(&connection_info.password, &auth_data.auth_data)?;
+            SupportedAuthMethods::MySQLOldPassword => {
+                let hash_bytes = old_password_hash(&connection_info.password);
                 Ok(String::from_utf8(hash_bytes.to_vec()).unwrap())
+            },
+            SupportedAuthMethods::MySQLNativePassword => {
+                if let Some(ref auth_data) = auth_data {
+                    let hash_bytes = native_password_hash(&connection_info.password, &auth_data.auth_data)?;
+                    Ok(String::from_utf8(hash_bytes.to_vec()).unwrap())
+                } else {
+                    Err(String::from("Cannot perform native password authentication without data from the server"))
+                }
             }
         }
     }

@@ -3,6 +3,7 @@ use std::cmp;
 
 use mysql::packets::Header;
 use mysql::packets::ReadablePacket;
+use mysql::client::capabilities::Capabilities;
 use mysql::packets::protocol_reader::ProtocolTypeReader;
 
 pub struct RequestV10 {
@@ -12,7 +13,7 @@ pub struct RequestV10 {
     pub thread_id: u32,
     pub char_set: u8,
     pub status_flags: u16,
-    pub capabilities: u32, //TODO: switch to strong type
+    pub capabilities: Capabilities, //TODO: switch to strong type
     pub auth_plugin: Option<AuthPlugin>,
 }
 
@@ -49,13 +50,14 @@ impl ReadablePacket for RequestV10 {
         let status_flags = reader.next_u16()?;
 
         let capabilities = ((reader.next_u16()? as u32) << 16) | (capabilities as u32); //prepend upper two bytes
+        let capabilities = Capabilities::from_bits_truncate(capabilities);
 
         let auth_data_len = reader.next_u8()?;
 
-       reader.advance(10)?; //reserved - should be all 0s //TODO: verify all zeros
+        reader.advance(10)?; //reserved - should be all 0s //TODO: verify all zeros
 
         let mut auth_plugin : Option<AuthPlugin> = None;
-        if 1_u32 == ((capabilities & (1 << 19)) >> 19 as u32) {
+        if capabilities.contains(Capabilities::CLIENT_PLUGIN_AUTH) {
             let auth_data_len = cmp::max(13, auth_data_len - 8);
             let mut auth_data_plugin = vec!();
             auth_data_plugin.extend_from_slice(reader.next_fixed_string(auth_data_len as u64)?.as_bytes());

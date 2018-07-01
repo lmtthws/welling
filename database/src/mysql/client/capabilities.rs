@@ -53,5 +53,5 @@ pub fn client_capabilities() -> Capabilities {
 }
 
 pub fn server_has_capability(server_handshake: RequestV10, capability: Capabilities) -> bool {
-    (server_handshake.capabilities & capability.bits()) == capability.bits()
+    server_handshake.capabilities.contains(capability)
 }

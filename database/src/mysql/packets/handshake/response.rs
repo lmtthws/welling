@@ -2,6 +2,7 @@ use std::fmt::Error;
 use std::fmt::Formatter;
 use std::io::{BufWriter, Write};
 use std::fmt::Display;
+use mysql::client::capabilities::Capabilities;
 use mysql::packets::Header;
 use mysql::packets::WriteablePacket;
 use mysql::packets::protocol_types::*;
@@ -9,7 +10,7 @@ use mysql::packets::protocol_types::*;
 //verify Capabilities::client_protocol_41 else should do 320, but our server will support 41 and we support 41, so...
 pub struct Response41 {
     pub header: Header,
-    pub capabilities: u32,
+    pub capabilities: Capabilities,
     pub max_packet_size: u32,
     pub char_set: u8,
     //filler - 23 0s
@@ -20,12 +21,33 @@ pub struct Response41 {
     pub connection_attributes: Option<ConnectAttributes> //if CLIENT_CONNECT_ATTRS in capabilities
 }
 
+impl Response41 {
+    pub const MINIMUM_SIZE: u32 = 4 + 4 + 1;
+
+    pub fn calculate_header_size(&mut self) -> Result<(),String> {
+        
+        let mut size = Response41::MINIMUM_SIZE as u64;
+        size += self.username.packet_size();
+        size += self.auth_response.packet_size();
+        if let Some(ref db) = self.init_database { size += db.packet_size(); }
+        if let Some(ref plug) = self.auth_plugin_name { size += plug.packet_size(); }
+        if let Some(ref attr) = self.connection_attributes { size += attr.packet_size(); }
+        
+        if size > u24::MAX as u64 {
+            return Err(String::from("Handshake response exceeds maximum response packet length"))
+        }
+
+        self.header = Header::new(u24(size as u32), self.header.sequence_id());
+        Ok(())
+    }
+}
+
 impl WriteablePacket for Response41 {
     fn write<W: Write>(&self, writer: &mut BufWriter<W>) -> Result<(),::std::io::Error> {
     
        self.header.write(writer)?;
        
-       write!(writer, "{}", self.capabilities)?;
+       write!(writer, "{}", self.capabilities.bits())?;
        write!(writer, "{}", self.max_packet_size)?;
        write!(writer, "{}", self.char_set)?;
        for _ in 0..23 {
@@ -53,12 +75,15 @@ pub struct ConnectAttributes {
 
 impl ConnectAttributes {
     fn length(&self) -> LengthInteger {
+        LengthInteger::new(self.packet_size())
+    }
+
+    pub fn packet_size(&self) -> u64 {
         let mut length: u64 = 0;
         for nv in self.nvp.iter() {
-            length += (nv.0).0.total_bytes() + (nv.1).0.total_bytes();
+            length += (nv.0).packet_size() + (nv.1).packet_size();
         }
-
-        LengthInteger::new(length)
+        length
     }
 }
 

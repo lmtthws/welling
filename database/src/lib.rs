@@ -14,8 +14,9 @@ pub mod mysql;
 
 pub struct ConnectionInfo {
     pub uri: Uri,
-    _username: String,
-    pub password: String
+    pub username: String,
+    pub password: String,
+    pub init_database: Option<String>
 }
 
 pub fn get_client(client_type: SupportedClient, server_details: ConnectionInfo) -> Box<DatabaseClient> {

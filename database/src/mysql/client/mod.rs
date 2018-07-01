@@ -1,28 +1,123 @@
 pub mod capabilities;
 pub mod authentication;
 
+use mysql::client::capabilities::Capabilities;
 use mysql::client::authentication::SupportedAuthMethods;
 use mysql::packets::handshake::request::RequestV10;
-use mysql::packets::ReadablePacket;
-use ::std::net::TcpStream;
+use mysql::packets::handshake::response::{Response41};
+use mysql::packets::{ReadablePacket, Header, WriteablePacket};
+use mysql::packets::protocol_types::*;
+use mysql::packets::general_response::{Responses};
+use ::std::net::{TcpStream,Shutdown};
 use {DatabaseClient, ConnectionInfo};
-use ::std::io::BufReader;
-
+use ::std::io::{BufReader,BufWriter};
+use ::std::u8;
 
 
 pub(crate) struct MySqlClient {
     server_details: ConnectionInfo,
+    client_options: MySqlClientOptions,
     connection_stream: Option<TcpStream>
+}
+
+struct MySqlClientOptions {
+    capabilities: capabilities::Capabilities,
+    max_packet_size: u32,
+    char_set: u8,
+}
+
+impl MySqlClientOptions {
+    fn default() -> MySqlClientOptions {
+        const DEFAULT_MAX_PACKET_SIZE: u32 = 16 * 1024 * 1024;
+        const DEFAULT_CHAR_SET: u8 = 1; //TODO - specify correct value
+
+        MySqlClientOptions{
+            capabilities: capabilities::client_capabilities(),
+            max_packet_size: DEFAULT_MAX_PACKET_SIZE,
+            char_set: DEFAULT_CHAR_SET,
+        }
+    }
 }
 
 impl MySqlClient {
     pub(crate) fn new(server_details: ConnectionInfo) -> MySqlClient {
         MySqlClient {
             server_details,
+            client_options: MySqlClientOptions::default(),
             connection_stream: None,
         }
     }
+
+    fn build_handshake_response(&self, request: RequestV10) -> Result<Response41,String> {
+        let capabilities = self.client_options.capabilities & request.capabilities;
+                
+        //if guess of auth method by server does not match, when we send our response, we may get a AuthSwitchRequest
+
+        // If the client doesn't plugins, the defaulting is different
+        // if client does not support client_secure_connection, as is true here atm, then we'll only use Old Password Authenticaiton
+        // if we're doing protocol 4.1 and we support secure_connection, then we'll do Native Authentication
+        // but we support plugins, so it's moot.
+        let auth_method: SupportedAuthMethods;
+        if let Some(ref plugin) = request.auth_plugin {
+            auth_method = SupportedAuthMethods::from(&*plugin.name);
+        } else {
+            auth_method = SupportedAuthMethods::default();
+        }
+        let auth_response: LengthEncodedString;
+        match auth_method.get_auth_response_value(&self.server_details, &request.auth_plugin) {
+            Ok(s) => auth_response = LengthEncodedString::from(s),
+            Err(e) => return self.handshake_err(String::from("Unable to generate authentication data"), Some(e))
+        }
+
+        //TODO: handle the case where auth data is between 251 and 255 in length (not a length integer but valid in this case)
+        if auth_response.size().value() > (u8::MAX as u64) && !capabilities.contains(Capabilities::CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA) {
+            return self.handshake_err(String::from("Authentication data exceeded max allowed value for server"), None)
+        }
+
+        let username = NullTerminatedString::from(&self.server_details.username[0..]);
+
+        let init_database = if capabilities.contains(Capabilities::CLIENT_CONNECT_WITH_DB) {
+            match self.server_details.init_database {
+                None => None,
+                Some(ref s) => Some(NullTerminatedString::from(s))
+            }
+        } else {
+            None
+        };
+
+        let auth_plugin_name = if capabilities.contains(Capabilities::CLIENT_PLUGIN_AUTH)  {
+            Some(NullTerminatedString::from(&*format!("{}",auth_method)))
+        } else {
+            None
+        };
+
+        let mut response = Response41{
+            header: Header::new_unsized(request.header.sequence_id()),
+            capabilities,
+            max_packet_size: self.client_options.max_packet_size,
+            char_set: self.client_options.char_set,
+            username,
+            auth_response,
+            init_database,
+            auth_plugin_name,
+            connection_attributes: None,
+        };
+
+        response.calculate_header_size()?;
+
+        Ok(response)
+
+    }
+
+    fn handshake_err<T>(&self, mut new_err: String, base_err: Option<String>) -> Result<T,String> {
+        if let Some(ref e) = base_err {
+            new_err.push_str(": ");
+            new_err.push_str(e);
+        }
+        return Err(new_err)
+    }
 }
+
 
 /*
     pub capabilities: u32,
@@ -36,34 +131,53 @@ impl MySqlClient {
     pub connection_attributes: Option<ConnectAttributes> //if CLIENT_CONNECT_ATTRS in capabilities
 */
 
+
+
+
 impl DatabaseClient for MySqlClient {
     #[allow(dead_code)]
     fn connect(&mut self) -> Result<(),String> {
         if let Ok(mut stream) = TcpStream::connect(&self.server_details.uri) {
             {
-            let mut reader = BufReader::new(&mut stream);
-            
-            let request: RequestV10 = RequestV10::read(&mut reader)?;
+                let request: RequestV10;
+                match RequestV10::read(&mut BufReader::new(&mut stream)) {
+                    Ok(r) => request = r,
+                    Err(e) => {
+                        stream.shutdown(Shutdown::Both).unwrap_or(());
+                        return self.handshake_err(String::from("Unable to read initial handshake packet"), Some(e))
+                    }
+                }
 
-            //if guess of auth method by server does not match, when we send our response, we may get a AuthSwitchRequest
+                let response: Response41;
+                match self.build_handshake_response(request) {
+                    Ok(r) => response = r,
+                    Err(e) => {
+                        stream.shutdown(Shutdown::Both).unwrap_or(());
+                        return Err(e)
+                    }
+                }
 
-            // If the client doesn't plugins, the defaulting is different
-            // if client does not support client_secure_connection, as is true here atm, then we'll only use Old Password Authenticaiton
-            // if we're doing protocol 4.1 and we support secure_connection, then we'll do Native Authentication
-            // but we support plugins, so it's moot.
+                let write_outcome = response.write(&mut BufWriter::new(&mut stream));
+                match write_outcome {
+                    Ok(_) => (),
+                    Err(e) => {
+                        stream.shutdown(Shutdown::Both).unwrap_or(());
+                        return self.handshake_err(String::from("Failed to send response packet"), Some(format!("{}",e)))
+                    }
+                }
 
-            //Native method - move this to authentication module
-            let auth_response = request.auth_plugin.unwrap();
-            let _auth_response = SupportedAuthMethods::from(&auth_response.name[0..]).get_auth_response_value(&self.server_details, &auth_response);
-            
-
-            //TODO: initialize the response
-            // also, we should try to do as much as we can with Traits and local functions. Trying to store values in structs and then chain methods is not great unless we wrap the whole thing.
-
-            //response.write_to_stream(stream);
-
-            //we should get an OK packet from the server at the end of this if auth was successful
-            }
+                match Responses::read(&mut stream) {
+                    Ok(Responses::Okay(_)) => (),
+                    Ok(Responses::Error(e)) => {
+                        stream.shutdown(Shutdown::Both).unwrap_or(());
+                        return self.handshake_err(String::from("Server responded with error"), Some(format!("{}: {}", e.error_code(), e.error_message())))
+                    },
+                    Err(e) => {
+                        stream.shutdown(Shutdown::Both).unwrap_or(());
+                        return self.handshake_err(String::from("Unable to read server response"), Some(e))
+                    }
+                }              
+            } 
             self.connection_stream = Some(stream);
             Ok(())
         } else {
@@ -73,4 +187,3 @@ impl DatabaseClient for MySqlClient {
 
     }
 }
-

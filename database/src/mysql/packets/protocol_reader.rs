@@ -150,7 +150,7 @@ impl<R> ProtocolTypeReader for BufReader<R> where R: ::std::io::Read { //we can 
         let length = self.next_length_integer()?;
         let string = self.next_fixed_string(length.value())?;
 
-        Ok(LengthEncodedString(length,string))
+        Ok(LengthEncodedString::from_unchecked(length,string))
     }
 }
 

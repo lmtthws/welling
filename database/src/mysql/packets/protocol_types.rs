@@ -4,6 +4,11 @@ use std::fmt::{Display, Formatter, Error};
 #[derive(Clone,Copy)]
 pub struct u24(pub u32); //TODO, implement math ops for this
 
+impl u24 {
+    pub const MAX: u32 = 1 << 24;
+}
+
+
 #[derive(Clone)]
 pub enum FixedInteger {
     Int1([u8;1]),
@@ -83,12 +88,25 @@ impl Display for LengthInteger {
 
 
 #[derive(Clone)]
-pub struct LengthEncodedString(pub LengthInteger, pub String);
+pub struct LengthEncodedString(LengthInteger, String);
 
 impl LengthEncodedString{
+    pub fn from_unchecked(length: LengthInteger, text: String) -> LengthEncodedString {
+        LengthEncodedString(length, text)
+    }
+
     pub fn from(string: String) -> Self {
         let len = LengthInteger::new(string.len() as u64);
         LengthEncodedString(len, string)
+    }
+
+    //TODO: handle overflow
+    pub fn packet_size(&self) -> u64 {
+        self.0.total_bytes() + self.1.len() as u64
+    }
+
+    pub fn size(&self) -> LengthInteger {
+        self.0
     }
 }
 
@@ -99,8 +117,19 @@ impl Display for LengthEncodedString {
     }
 }
 
-
+#[derive(Clone)]
 pub struct NullTerminatedString(String);
+
+impl NullTerminatedString {
+    pub fn from(text: &str) -> NullTerminatedString {
+        NullTerminatedString(String::from(text))
+    }
+
+    //TODO: handle overflow...
+    pub fn packet_size(&self) -> u64 {
+        self.0.len() as u64 + 1
+    }
+}
 
 impl Display for NullTerminatedString {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
