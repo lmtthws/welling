@@ -1,7 +1,7 @@
 extern crate ring;
 extern crate simple_logger;
 
-use mysql::packets::handshake::request::AuthPlugin;
+use mysql::packets::handshake::authentication::AuthPlugin;
 use mysql::packets::protocol_writer;
 use std::convert::From;
 use std::fmt::{Display, Formatter};
@@ -11,6 +11,27 @@ pub enum SupportedAuthMethods {
     Unknown,
     MySQLOldPassword,
     MySQLNativePassword
+}
+
+pub struct AuthenticationResponse {
+    method: SupportedAuthMethods,
+    data: String,
+}
+
+impl AuthenticationResponse {
+    pub fn new(method: SupportedAuthMethods, data: String) -> AuthenticationResponse {
+        AuthenticationResponse {
+            method, data
+        }
+    }
+
+    pub fn method(&self) -> &SupportedAuthMethods {
+        &self.method
+    }
+
+    pub fn data(&self) -> String {
+        String::from(&*self.data)
+    }
 }
 
 impl Display for SupportedAuthMethods {
@@ -38,7 +59,7 @@ impl SupportedAuthMethods {
         SupportedAuthMethods::MySQLOldPassword
     }
 
-    pub fn get_auth_response_value(&self, connection_info: &ConnectionInfo, auth_data: &Option<AuthPlugin> ) -> Result<String,String> {
+    pub fn get_auth_response_value(&self, connection_info: &ConnectionInfo, auth_data: &Option<&AuthPlugin> ) -> Result<String,String> {
         match *self {
             SupportedAuthMethods::Unknown => Err(String::from("should force disconnect")), //TODO: force disconnect...
             SupportedAuthMethods::MySQLOldPassword => {

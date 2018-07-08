@@ -2,12 +2,13 @@ pub mod capabilities;
 pub mod authentication;
 
 use mysql::client::capabilities::Capabilities;
-use mysql::client::authentication::SupportedAuthMethods;
-use mysql::packets::handshake::request::RequestV10;
+use mysql::client::authentication::{SupportedAuthMethods, AuthenticationResponse};
+use mysql::packets::handshake::request::{RequestV10};
 use mysql::packets::handshake::response::{Response41};
+use mysql::packets::handshake::authentication::{AuthSwitchRequest, AuthSwitchResponse, AuthPlugin};
 use mysql::packets::{ReadablePacket, Header, WriteablePacket};
 use mysql::packets::protocol_types::*;
-use mysql::packets::general_response::{Responses};
+use mysql::packets::general_response::{GeneralResponses};
 use ::std::net::{TcpStream,Shutdown};
 use {DatabaseClient, ConnectionInfo};
 use ::std::io::{BufReader,BufWriter};
@@ -57,18 +58,10 @@ impl MySqlClient {
         // if client does not support client_secure_connection, as is true here atm, then we'll only use Old Password Authenticaiton
         // if we're doing protocol 4.1 and we support secure_connection, then we'll do Native Authentication
         // but we support plugins, so it's moot.
-        let auth_method: SupportedAuthMethods;
-        if let Some(ref plugin) = request.auth_plugin {
-            auth_method = SupportedAuthMethods::from(&*plugin.name);
-        } else {
-            auth_method = SupportedAuthMethods::default();
-        }
-        let auth_response: LengthEncodedString;
-        match auth_method.get_auth_response_value(&self.server_details, &request.auth_plugin) {
-            Ok(s) => auth_response = LengthEncodedString::from(s),
-            Err(e) => return self.handshake_err(String::from("Unable to generate authentication data"), Some(e))
-        }
 
+        let response = self.generate_auth_response(&request.auth_plugin())?;
+        let auth_response = LengthEncodedString::from(response.data());
+        
         //TODO: handle the case where auth data is between 251 and 255 in length (not a length integer but valid in this case)
         if auth_response.size().value() > (u8::MAX as u64) && !capabilities.contains(Capabilities::CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA) {
             return self.handshake_err(String::from("Authentication data exceeded max allowed value for server"), None)
@@ -86,7 +79,7 @@ impl MySqlClient {
         };
 
         let auth_plugin_name = if capabilities.contains(Capabilities::CLIENT_PLUGIN_AUTH)  {
-            Some(NullTerminatedString::from(&*format!("{}",auth_method)))
+            Some(NullTerminatedString::from(&*format!("{}", response.method())))
         } else {
             None
         };
@@ -106,7 +99,20 @@ impl MySqlClient {
         response.calculate_header_size()?;
 
         Ok(response)
+    }
 
+    fn generate_auth_response(&self, auth_plugin: &Option<&AuthPlugin>) -> Result<AuthenticationResponse,String> {
+        let auth_method: SupportedAuthMethods;
+        if let Some(ref plugin) = auth_plugin {
+            auth_method = SupportedAuthMethods::from(&*plugin.name);
+        } else {
+            auth_method = SupportedAuthMethods::default();
+        }
+
+        match auth_method.get_auth_response_value(&self.server_details, auth_plugin) {
+            Ok(s) => Ok(AuthenticationResponse::new(auth_method, s)),
+            Err(e) => return self.handshake_err(String::from("Unable to generate authentication data"), Some(e))
+        }
     }
 
     fn handshake_err<T>(&self, mut new_err: String, base_err: Option<String>) -> Result<T,String> {
@@ -115,6 +121,27 @@ impl MySqlClient {
             new_err.push_str(e);
         }
         return Err(new_err)
+    }
+
+    fn continue_authentication(&self, stream: &mut TcpStream) -> Result<AuthSwitchResponse,String>
+    {
+        let auth_switch_req = AuthSwitchRequest::read(&mut BufReader::new(stream))?;
+        let auth_response = self.generate_auth_response(&Some(auth_switch_req.plugin()))?;
+        AuthSwitchResponse::new(auth_response.data(), auth_switch_req.header().sequence_id())
+    }
+
+    fn wrapup_handshake(&self, stream: &mut TcpStream) -> Result<(),String> {
+         match GeneralResponses::read(stream) {
+            Ok(GeneralResponses::Okay(_)) => Ok(()),
+            Ok(GeneralResponses::Error(e)) => {
+                stream.shutdown(Shutdown::Both).unwrap_or(());
+                return self.handshake_err(String::from("Server responded with error"), Some(format!("{}: {}", e.error_code(), e.error_message())))
+            },
+            Err(e) => {
+                stream.shutdown(Shutdown::Both).unwrap_or(());
+                return self.handshake_err(String::from("Unable to read server response"), Some(e))
+            }
+        }
     }
 }
 
@@ -166,24 +193,39 @@ impl DatabaseClient for MySqlClient {
                     }
                 }
 
-                match Responses::read(&mut stream) {
-                    Ok(Responses::Okay(_)) => (),
-                    Ok(Responses::Error(e)) => {
-                        stream.shutdown(Shutdown::Both).unwrap_or(());
-                        return self.handshake_err(String::from("Server responded with error"), Some(format!("{}: {}", e.error_code(), e.error_message())))
-                    },
-                    Err(e) => {
-                        stream.shutdown(Shutdown::Both).unwrap_or(());
-                        return self.handshake_err(String::from("Unable to read server response"), Some(e))
+                let mut buffer = [0;5];
+                if let Ok(5) = stream.peek(&mut buffer) {
+                    match buffer[4] {
+                        0xFE =>{ 
+                            let auth_response = self.continue_authentication(&mut stream);
+                            match auth_response {
+                                Ok(r) => {
+                                    let send_result = r.write(&mut BufWriter::new(&mut stream));
+                                    match send_result {
+                                        Err(e) => {
+                                            stream.shutdown(Shutdown::Both).unwrap_or(());
+                                            return self.handshake_err(String::from("Authentication failed"), Some(format!("{}",e)))
+                                        },
+                                        Ok(()) => ()
+                                    }
+                                },
+                                Err(e) => {
+                                    stream.shutdown(Shutdown::Both).unwrap_or(());
+                                    return self.handshake_err(String::from("Authentication failed"), Some(e))
+                                }
+
+                            }
+                        },
+                        _ => (),
                     }
-                }              
+                }    
+
+                self.wrapup_handshake(&mut stream)?                        
             } 
             self.connection_stream = Some(stream);
             Ok(())
         } else {
             return Err(String::from("Unable to open TCP connection to designated host"))
         }
-
-
     }
 }

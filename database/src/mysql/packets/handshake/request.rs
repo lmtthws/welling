@@ -5,6 +5,7 @@ use mysql::packets::Header;
 use mysql::packets::ReadablePacket;
 use mysql::client::capabilities::Capabilities;
 use mysql::packets::protocol_reader::ProtocolTypeReader;
+use mysql::packets::handshake::authentication::AuthPlugin;
 
 pub struct RequestV10 {
     pub header: Header,
@@ -14,13 +15,18 @@ pub struct RequestV10 {
     pub char_set: u8,
     pub status_flags: u16,
     pub capabilities: Capabilities, //TODO: switch to strong type
-    pub auth_plugin: Option<AuthPlugin>,
+    auth_plugin: Option<AuthPlugin>,
 }
 
-pub struct AuthPlugin {
-    pub name: String,
-    pub auth_data: String,
+impl RequestV10 {
+    pub fn auth_plugin(&self) -> Option<&AuthPlugin> {
+        match self.auth_plugin {
+            None => None,
+            Some(ref plugin) => Some(plugin)
+        }
+    }
 }
+
 
 impl ReadablePacket for RequestV10 {
 

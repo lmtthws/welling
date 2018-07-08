@@ -3,6 +3,7 @@ pub mod protocol_types;
 pub mod general_response;
 pub mod protocol_reader;
 pub mod protocol_writer;
+pub mod command;
 
 use std::marker::Sized;
 use std::io::{BufReader, Read, BufWriter, Write, ErrorKind};

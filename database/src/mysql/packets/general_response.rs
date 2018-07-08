@@ -9,23 +9,23 @@ use mysql::packets::protocol_reader::ProtocolTypeReader;
 
 
 
-pub enum Responses{
+pub enum GeneralResponses{
     Okay(OkPacket41),
     Error(ErrPacket41)
 }
 
-impl Responses {
+impl GeneralResponses {
     //TODO: BufReader seek supposedly discards the buffer, which means, I think, that the packet reads will fail...
-    pub fn read(stream: &mut TcpStream) -> Result<Responses, String> {
+    pub fn read(stream: &mut TcpStream) -> Result<GeneralResponses, String> {
         let mut buffer = [0_u8; 5];
         match stream.peek(&mut buffer) {
             Err(e) => Err(format!("{}",e)),
             Ok(5) => match buffer[4] {
                 0x00 | 0xFE => {
-                    Ok(Responses::Okay(OkPacket41::read(&mut BufReader::new(stream))?))
+                    Ok(GeneralResponses::Okay(OkPacket41::read(&mut BufReader::new(stream))?))
                 },
                 0xFF => {
-                    Ok(Responses::Error(ErrPacket41::read(&mut BufReader::new(stream))?))
+                    Ok(GeneralResponses::Error(ErrPacket41::read(&mut BufReader::new(stream))?))
                 },
                 _ => Err(format!("Unexpected response packet identifier: {}", buffer[4]))
             },
@@ -172,4 +172,12 @@ bitflags! {
         const SERVER_STATUS_IN_TRANS_READONLY  = 8192;
         const SERVER_SESSION_STATE_CHANGED  = 1 << 14;
     }
+}
+
+#[allow(dead_code)]
+pub struct EofPacket41 {
+    header: Header,
+    identifier: u8, //0xFE
+    warning_count: u16,
+    status_flags: ServerStatus
 }
