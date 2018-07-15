@@ -30,6 +30,13 @@ impl RawValue {
             } 
         }
     }
+
+    fn byte_len(&self) -> u32 {
+        match *self {
+            RawValue::Null => 1,
+            RawValue::Valued(ref val) => val.packet_size() as u32 //if it's in a single packet, it must be < 16mb
+        }
+    }
 }
 
 
@@ -39,15 +46,19 @@ pub struct ResultSetRow {
     terminator: Option<EofPacket41>
 }
 
-impl ResultSetRow {
-    fn read<R: Read>(buffer: &mut BufReader<R>, col_count: LengthInteger) -> Result<ResultSetRow, String> {
+impl ReadablePacket for ResultSetRow {
+    fn read<R: Read>(buffer: &mut BufReader<R>, header: &Header) -> Result<ResultSetRow, String> {
+        let mut total_bytes = header.packet_len().0;
 
-        let mut values = Vec::with_capacity(col_count.value() as usize); //will potentially break on non-x64
-        for i in 0..col_count.value() {
-            values.push(RawValue::read(buffer)?)
+        let mut values = Vec::new();
+        while total_bytes > 0 {
+            let raw_value = RawValue::read(buffer)?;
+            total_bytes -= raw_value.byte_len();
+            values.push(raw_value);
         }
 
         //assume client_deprecate_eof capability is set until we refactor into a parser that is aware of capabilitities...
+        let col_count = LengthInteger::new(values.len() as u64);
         let terminator = None;
         Ok(ResultSetRow{col_count, values, terminator})
     }

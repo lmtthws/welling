@@ -1,32 +1,17 @@
 use mysql::packets::{Header, WriteablePacket, ReadablePacket};
-use ::std::io::{Read, Write, BufReader, BufWriter};
-use mysql::packets::protocol_reader::ProtocolTypeReader;
+use ::std::io::{Read, Write, BufReader, BufWriter, Cursor, Seek};
+use mysql::packets::*;
 use mysql::packets::command::SupportedCommands;
-use mysql::packets::protocol_types::*;
-use mysql::packets::command::column::ColumnDefinition;
+use mysql::packets::command::column::{ColumnDefinition, ColumnCount};
 use mysql::packets::command::row::ResultSetRow;
-use mysql::packets::general_response::{EofPacket41,ErrPacket41,OkPacket41,GeneralResponses};
+use mysql::packets::protocol_reader;
+
+use ::std::u8;
 
 pub struct Request {
     header: Header,
     server_command: SupportedCommands,
     text: String
-}
-
-pub enum ResultSetMetadata
-{
-    None, //0
-    Full //1
-}
-
-impl ResultSetMetadata{
-    pub fn from(flag: u8) -> Result<ResultSetMetadata,String> {
-        match flag {
-            0 => Ok(ResultSetMetadata::None),
-            1 => Ok(ResultSetMetadata::Full),
-            _ => Err(String::from("Result set metadata type not recognized"))
-        }
-    }
 }
 
 
@@ -39,32 +24,46 @@ pub enum QueryResponse {
 
 impl ReadablePacket for QueryResponse {
     fn read<R: Read>(buffer: &mut BufReader<R>, header: &Header) -> Result<QueryResponse, String> {
-        match buffer.next_u8()? {
-            0x00 => Ok(QueryResponse::Okay(OkPacket41::read(buffer, header)?)),
-            0xFF => Ok(QueryResponse::Error(ErrPacket41::read(buffer, header)?)),
-            0xFB => Ok(QueryResponse::LocalInfile(LocalInFileResponse::read(buffer, header)?)),
-            _ => Ok(QueryResponse::ResultSet(TextResultSet::read(buffer, header)?))
+        if header.packet_len().0 > u8::MAX as u32 {
+            return Err(format!("Initial response packet from server to query is larger than expected: {}", header.packet_len().0 ))
+        }
+
+        let the_packet = protocol_reader::read_exact(buffer, header.packet_len().0)?;
+        
+        let mut cursor = Cursor::new(the_packet);
+
+        let mut buffer: [u8;1] = [0;1];
+        match cursor.read_exact(&mut buffer) {
+            Err(e) => Err(format!("{}", e)),
+            Ok(()) => {
+                let marker = buffer[0];
+                cursor.set_position(0);
+                let mut buffer = BufReader::new(cursor);
+                match marker {
+                    0x00 => Ok(QueryResponse::Okay(OkPacket41::read(&mut buffer, header)?)),
+                    0xFF => Ok(QueryResponse::Error(ErrPacket41::read(&mut buffer, header)?)),
+                    0xFB => Ok(QueryResponse::LocalInfile(LocalInFileResponse::read(&mut buffer, header)?)),
+                    _ => Ok(QueryResponse::ResultSet(TextResultSet::read(&mut buffer, header)?))
+                }
+            }
         }
     }
 }
 
 
-
 pub struct LocalInFileResponse {
-    file_name: String,
+    _file_name: String,
 }
 
 impl ReadablePacket for LocalInFileResponse {
-    fn read<R: Read>(buffer: &mut BufReader<R>, header: &Header) -> Result<LocalInFileResponse, String> {
+    fn read<R: Read>(_buffer: &mut BufReader<R>, _header: &Header) -> Result<LocalInFileResponse, String> {
         Err(String::from("Local infile not supported"))
     }
 }
 
 
-
 pub struct TextResultSet {
-    metadata_follows: Option<ResultSetMetadata>,
-    col_count: LengthInteger,
+    column_count: ColumnCount,
     column_definitions: Vec<ColumnDefinition>, //present if either CLIENT_OPTIONAL_RESULTSET_METADATA is not set or server sent ResultSetMetadata::Full
     marker: Option<EofPacket41>, //present if not capabilities and CLIENT_DEPRECATE_EOF <- should never be present for us...
     results: Vec<ResultSetRow>,
@@ -73,40 +72,114 @@ pub struct TextResultSet {
 
 impl ReadablePacket for TextResultSet {
     fn read<R: Read>(buffer: &mut BufReader<R>, header: &Header) -> Result<TextResultSet, String> {
-               
-        let total_set_length = buffer.next_length_integer()?;
+        let column_count = ColumnCount::read(buffer, header)?;
 
-        let mut metadata_follows = None;
-        let mut col_count = buffer.next_length_integer()?;
-        if let LengthInteger::U8(flag) = col_count {
-            if let Ok(metadata_flag) = ResultSetMetadata::from(flag) {
-                col_count = buffer.next_length_integer()?;
-                metadata_follows = Some(metadata_flag);
-            }
+        let mut column_definitions = Vec::with_capacity(column_count.expected_columns() as usize);
+        for _ in 0..column_count.expected_columns() {
+            let column = ServerPacket::<ColumnDefinition>::read(buffer)?;
+            let column = column.into_payload();
+            column_definitions.push(column);
         }
 
+        let marker: Option<EofPacket41> = None;
+       
+        let terminator: GeneralResponses;
+        let mut results = Vec::new();
+        loop {
+            let result_row = ServerPacket::<ResultSetComponent>::read(buffer)?;
 
-        ///TODO: add packets
-        let mut column_definitions = Vec::with_capacity(col_count.value() as usize);
-        match metadata_follows {
-            Some(ResultSetMetadata::None) => (),
-            _ => {
-                for i in 0..col_count.value() {
-                    column_definitions.push(ColumnDefinition::read(buffer)?)
+            match result_row.into_payload() {
+                ResultSetComponent::Row(result) => results.push(result),
+                ResultSetComponent::Terminator(result) => {
+                    terminator = result;
+                    break;
                 }
             }
         }
-
-        //assume deprecate_eof is set
-        let marker: Option<EofPacket41> = None;
-
-        //TODO: is the result set an actual packet? Otherwise, how do I know how many rows there are????
-
-        Err(String::from("error"))
         
+        Ok(TextResultSet{column_count, column_definitions, marker, results, terminator})
+    }
+}
+
+enum ResultSetComponent {
+    Row(ResultSetRow),
+    Terminator(GeneralResponses)
+}
+
+impl ReadablePacket for ResultSetComponent {
+    fn read<R: Read>(buffer: &mut BufReader<R>, header: &Header) -> Result<ResultSetComponent, String> {
+        let the_packet = protocol_reader::read_exact(buffer, header.packet_len().0)?;
+        
+        let mut cursor = Cursor::new(the_packet);
+
+        let mut buffer: [u8;1] = [0;1];
+        match cursor.read_exact(&mut buffer) {
+            Err(e) => Err(format!("{}", e)),
+            Ok(()) => {
+                let marker = buffer[0];
+                cursor.set_position(0);
+                let mut buffer = BufReader::new(cursor);
+                match marker {
+                    0x00 | 0xFF => Ok(ResultSetComponent::Terminator(GeneralResponses::read(&mut buffer, header)?)),
+                    _ => Ok(ResultSetComponent::Row(ResultSetRow::read(&mut buffer, header)?))
+                }
+            }
+        }
     }
 }
 
 
 
+/*
+CREATE TEMPORARY TABLE ins ( id INT );
+DROP PROCEDURE IF EXISTS multi;
+DELIMITER $$
+CREATE PROCEDURE multi() BEGIN
+  SELECT 1;
+  SELECT 1;
+  INSERT INTO ins VALUES (1);
+  INSERT INTO ins VALUES (2);
+END$$
+DELIMITER ;
+CALL multi();
+DROP TABLE ins;
+
+
+packet: column count
+01 00 00 01 01 <- 1
+
+packet: column definition
+17 00 00 02 
+    03 64 65 66 <- catalog: def
+    00 <- schema
+    00 <- table
+    00 <- org_name   ..........def...
+    01 31 <- name: 1
+    00 <- org_name
+    0c <- fixed length fields size
+    3f 00 <- character set: 63-binary
+    01 00 00 00 <- column length: 1
+    08 <- type: LongLong
+    81 00 <- flags: 129: 128 | 1 -> Not Null and Binary
+    00 <- decimals: 0 - integer
+   
+    00 00    .1..?...........
+
+05 00 00 03 fe 00 00 0a 00 <- EOF for column terminator
+
+02 00 00 04 01 31 <- there's one column, so there's only one length-string in here: length of 1 and value of 1
+
+05 00 00 05 fe 00 00 0a 00    - EOF packet: 5 chars, sequence 5 -> FE for EOF, warnings: 00 00, status_flags: 0a 00 -> 00 0a -> 10 -> 8 | 2 -> MORE RESULTS and AUTO_COMMIT                         ........
+
+
+01 00 00 01 01  -> column count
+17 00 00 02     
+03 64 65 66 00 00 00 01 31 00 0c 3f 00 01 00 00 00
+08 81 00 00 00 00    
+05 00 00 03 fe 00 00 0a    00 
+
+02 00 00 04 01 31 
+05 00 00 05 fe 00 00 0a 00 
+
+*/
 

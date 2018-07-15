@@ -1,7 +1,4 @@
-use std::io::BufReader;
-use std::io::BufRead;
-use std::io::Read;
-
+use std::io::{BufReader, BufRead, Read, Cursor, Chain};
 use mysql::packets::protocol_types::*;
 use mysql::packets::bytes::Endian;
 
@@ -63,7 +60,9 @@ impl ProtocolTypeConverter for Vec<u8> {
     }
 }
 
-pub trait ProtocolTypeReader{
+pub trait ProtocolTypeReader where Self: Sized {
+    type R2;
+
     fn advance(&mut self, len: u8) ->Result<(),String>;
 
     fn next_u8(&mut self) -> Result<u8,String> ;
@@ -79,8 +78,11 @@ pub trait ProtocolTypeReader{
 }
 
 impl<R> ProtocolTypeReader for BufReader<R> where R: ::std::io::Read { //we can optimize this based on max packet size (16mb or u24)
+    type R2 = BufReader<Box<Read>>;
+
+
     fn advance(&mut self, len: u8) -> Result<(), String> {
-        match read_exact(self, len) {
+        match read_exact(self, len as u32) {
             Ok(_) => Ok(()),
             Err(s) => Err(s)
         }
@@ -152,12 +154,12 @@ impl<R> ProtocolTypeReader for BufReader<R> where R: ::std::io::Read { //we can 
     }
 }
 
-pub fn read_exact<R>(reader: &mut BufReader<R>, count: u8) -> Result<Vec<u8>,String> where R: ::std::io::Read {
+pub fn read_exact<R>(reader: &mut BufReader<R>, count: u32) -> Result<Vec<u8>,String> where R: ::std::io::Read {
     if count == 0 {
         return Ok(vec!())
     }
     
-    let count = count as usize;
+    let count = count as usize; 
     let buffer = Vec::with_capacity(count);
     let mut buffer = buffer.into_boxed_slice();
 

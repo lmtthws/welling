@@ -1,6 +1,47 @@
 use mysql::data::column::{ColFieldType, ColumnDefinitionFlags};
 use mysql::packets::*;
 
+pub enum ResultSetHasMetadata {
+    None, //0
+    Full //1
+}
+
+impl ResultSetHasMetadata {
+    pub fn from(flag: u8) -> Result<ResultSetHasMetadata,String> {
+        match flag {
+            0 => Ok(ResultSetHasMetadata::None),
+            1 => Ok(ResultSetHasMetadata::Full),
+            _ => Err(String::from("Result set metadata type not recognized"))
+        }
+    }
+}
+
+
+pub struct ColumnCount {
+    metadata_follows: Option<ResultSetHasMetadata>, //omitted if client does not have CLIENT_OPTIONAL_RESULTSET_METADATA capability
+    column_count: LengthInteger
+}
+
+impl ReadablePacket for ColumnCount {
+    fn read<R: Read>(buffer: &mut BufReader<R>, _header: &Header) -> Result<ColumnCount, String> {
+       let metadata_follows: Option<ResultSetHasMetadata> = None;
+       let column_count = buffer.next_length_integer()?;
+
+        Ok(ColumnCount { metadata_follows, column_count })
+    }
+}
+
+impl ColumnCount {
+    pub fn expected_columns(&self) -> u64 {
+        if let Some(ResultSetHasMetadata::None) = self.metadata_follows {
+            0
+        } else {
+            self.column_count.value()
+        }
+    }
+}
+
+
 pub struct ColumnDefinition {
     catalog: LengthEncodedString,
     schema: LengthEncodedString,
@@ -16,8 +57,8 @@ pub struct ColumnDefinition {
     decimals: u8,
 }
 
-impl ColumnDefinition {
-    pub fn read<R: Read>(buffer: &mut BufReader<R>) -> Result<ColumnDefinition, String> {
+impl ReadablePacket for ColumnDefinition {
+    fn read<R: Read>(buffer: &mut BufReader<R>, _header: &Header) -> Result<ColumnDefinition, String> {
         let catalog = buffer.next_length_string()?;
         let schema = buffer.next_length_string()?;
         let table = buffer.next_length_string()?;
@@ -36,9 +77,8 @@ impl ColumnDefinition {
 
         let decimals = buffer.next_u8()?;
 
-        Ok(ColumnDefinition{
+        Ok(ColumnDefinition {
             catalog, schema, table, org_table, name, org_name, length, char_set, col_length, col_type, flags, decimals
         })
     }
 }
-

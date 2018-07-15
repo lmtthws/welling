@@ -39,8 +39,11 @@ impl<RP: ReadablePacket> ServerPacket<RP> {
     pub fn payload(&self) -> &RP {
         &self.payload
     }
-}
 
+    pub fn into_payload(self) -> RP {
+        self.payload
+    }
+}
 
 
 pub struct ClientPacket<WP: WriteablePacket> {
