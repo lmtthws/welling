@@ -1,4 +1,4 @@
-use mysql::packets::protocol_types::*;
+use mysql::packets::*;
 
 
 pub enum ColFieldType {

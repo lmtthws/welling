@@ -3,12 +3,8 @@ pub mod authentication;
 
 use mysql::client::capabilities::Capabilities;
 use mysql::client::authentication::{SupportedAuthMethods, AuthenticationResponse};
-use mysql::packets::handshake::request::{RequestV10};
-use mysql::packets::handshake::response::{Response41};
-use mysql::packets::handshake::authentication::{AuthSwitchRequest, AuthSwitchResponse, AuthPlugin};
-use mysql::packets::{ReadablePacket, Header, WriteablePacket};
-use mysql::packets::protocol_types::*;
-use mysql::packets::general_response::{GeneralResponses};
+use mysql::packets::handshake::*;
+use mysql::packets::*;
 use ::std::net::{TcpStream,Shutdown};
 use {DatabaseClient, ConnectionInfo};
 use ::std::io::{BufReader,BufWriter};
@@ -49,7 +45,9 @@ impl MySqlClient {
         }
     }
 
-    fn build_handshake_response(&self, request: RequestV10) -> Result<Response41,String> {
+    fn build_handshake_response(&self, requestPacket: ServerPacket<RequestV10>) -> Result<ClientPacket<Response41>,String> {
+        let request = requestPacket.payload();
+
         let capabilities = self.client_options.capabilities & request.capabilities;
                 
         //if guess of auth method by server does not match, when we send our response, we may get a AuthSwitchRequest
@@ -84,8 +82,7 @@ impl MySqlClient {
             None
         };
 
-        let mut response = Response41{
-            header: Header::new_unsized(request.header.sequence_id()),
+        let response = Response41 {
             capabilities,
             max_packet_size: self.client_options.max_packet_size,
             char_set: self.client_options.char_set,
@@ -96,9 +93,7 @@ impl MySqlClient {
             connection_attributes: None,
         };
 
-        response.calculate_header_size()?;
-
-        Ok(response)
+        ClientPacket::<Response41>::new(response, requestPacket.sequence_id())
     }
 
     fn generate_auth_response(&self, auth_plugin: &Option<&AuthPlugin>) -> Result<AuthenticationResponse,String> {
@@ -123,25 +118,50 @@ impl MySqlClient {
         return Err(new_err)
     }
 
-    fn continue_authentication(&self, stream: &mut TcpStream) -> Result<AuthSwitchResponse,String>
+    fn continue_authentication(&self, auth_switch_req: &AuthSwitchRequest, sequence_id: u8, stream: &mut TcpStream) -> Result<(),String>
     {
-        let auth_switch_req = AuthSwitchRequest::read(&mut BufReader::new(stream))?;
         let auth_response = self.generate_auth_response(&Some(auth_switch_req.plugin()))?;
-        AuthSwitchResponse::new(auth_response.data(), auth_switch_req.header().sequence_id())
+        let auth_response = ClientPacket::new(AuthSwitchResponse::new(auth_response.data()), sequence_id)?;
+
+        let auth_response = auth_response.write(&mut BufWriter::new(stream));
+        match auth_response {
+            Err(e) => Err(format!("Failed to send authentication response to server : {}", e)),
+            Ok(()) => Ok(())
+        }
+
     }
 
-    fn wrapup_handshake(&self, stream: &mut TcpStream) -> Result<(),String> {
-         match GeneralResponses::read(stream) {
-            Ok(GeneralResponses::Okay(_)) => Ok(()),
-            Ok(GeneralResponses::Error(e)) => {
-                stream.shutdown(Shutdown::Both).unwrap_or(());
-                return self.handshake_err(String::from("Server responded with error"), Some(format!("{}: {}", e.error_code(), e.error_message())))
-            },
+    fn wrapup_handshake(&self, mut stream: TcpStream) -> Result<TcpStream,String> {
+        let server_response: ServerPacket<HandshakeServerResponse>;
+        match ServerPacket::<HandshakeServerResponse>::read(&mut BufReader::new(&mut stream)) {
+            Ok(response) => server_response = response,
             Err(e) => {
                 stream.shutdown(Shutdown::Both).unwrap_or(());
-                return self.handshake_err(String::from("Unable to read server response"), Some(e))
+                return self.handshake_err(String::from("Failed to read server's response"),Some(format!("{}",e)))
             }
         }
+
+        match *server_response.payload() {
+            HandshakeServerResponse::Okay(_) => Ok(stream),
+            HandshakeServerResponse::AuthSwitch(ref auth_req) => {
+                let auth_continue_result = self.continue_authentication(auth_req, server_response.sequence_id(), &mut stream);
+                match auth_continue_result {
+                    Err(e) => {
+                        stream.shutdown(Shutdown::Both).unwrap_or(());
+                        return self.handshake_err(String::from("Authentication failed"), Some(format!("{}",e)));
+                    },
+                    Ok(()) => return self.wrapup_handshake(stream)
+                }
+            },
+            HandshakeServerResponse::MoreAuthData(_) => {
+                stream.shutdown(Shutdown::Both).unwrap_or(());
+                return self.handshake_err(String::from("Server responded with AuthMoreData packet"), Some(String::from("Authentication methods requiring multiple exchanges not yet supported")))
+            }
+            HandshakeServerResponse::Error(ref e) => {
+                stream.shutdown(Shutdown::Both).unwrap_or(());
+                return self.handshake_err(String::from("Server responded with error"), Some(format!("{}: {}", e.error_code(), e.error_message())))
+            }
+        } 
     }
 }
 
@@ -165,63 +185,36 @@ impl DatabaseClient for MySqlClient {
     #[allow(dead_code)]
     fn connect(&mut self) -> Result<(),String> {
         if let Ok(mut stream) = TcpStream::connect(&self.server_details.uri) {
-            {
-                let request: RequestV10;
-                match RequestV10::read(&mut BufReader::new(&mut stream)) {
-                    Ok(r) => request = r,
-                    Err(e) => {
-                        stream.shutdown(Shutdown::Both).unwrap_or(());
-                        return self.handshake_err(String::from("Unable to read initial handshake packet"), Some(e))
-                    }
+            
+            let request: ServerPacket<RequestV10>;
+            match ServerPacket::<RequestV10>::read(&mut BufReader::new(&mut stream)) {
+                Ok(r) => request = r,
+                Err(e) => {
+                    stream.shutdown(Shutdown::Both).unwrap_or(());
+                    return self.handshake_err(String::from("Unable to read initial handshake packet"), Some(e))
                 }
+            }
 
-                let response: Response41;
-                match self.build_handshake_response(request) {
-                    Ok(r) => response = r,
-                    Err(e) => {
-                        stream.shutdown(Shutdown::Both).unwrap_or(());
-                        return Err(e)
-                    }
+            let response: ClientPacket<Response41>;
+            match self.build_handshake_response(request) {
+                Ok(r) => response = r,
+                Err(e) => {
+                    stream.shutdown(Shutdown::Both).unwrap_or(());
+                    return Err(e)
                 }
+            }
 
-                let write_outcome = response.write(&mut BufWriter::new(&mut stream));
-                match write_outcome {
-                    Ok(_) => (),
-                    Err(e) => {
-                        stream.shutdown(Shutdown::Both).unwrap_or(());
-                        return self.handshake_err(String::from("Failed to send response packet"), Some(format!("{}",e)))
-                    }
+            let write_outcome = response.write(&mut BufWriter::new(&mut stream));
+            match write_outcome {
+                Ok(_) => (),
+                Err(e) => {
+                    stream.shutdown(Shutdown::Both).unwrap_or(());
+                    return self.handshake_err(String::from("Failed to send response packet"), Some(format!("{}",e)))
                 }
+            }
 
-                let mut buffer = [0;5];
-                if let Ok(5) = stream.peek(&mut buffer) {
-                    match buffer[4] {
-                        0xFE =>{ 
-                            let auth_response = self.continue_authentication(&mut stream);
-                            match auth_response {
-                                Ok(r) => {
-                                    let send_result = r.write(&mut BufWriter::new(&mut stream));
-                                    match send_result {
-                                        Err(e) => {
-                                            stream.shutdown(Shutdown::Both).unwrap_or(());
-                                            return self.handshake_err(String::from("Authentication failed"), Some(format!("{}",e)))
-                                        },
-                                        Ok(()) => ()
-                                    }
-                                },
-                                Err(e) => {
-                                    stream.shutdown(Shutdown::Both).unwrap_or(());
-                                    return self.handshake_err(String::from("Authentication failed"), Some(e))
-                                }
-
-                            }
-                        },
-                        _ => (),
-                    }
-                }    
-
-                self.wrapup_handshake(&mut stream)?                        
-            } 
+            let stream = self.wrapup_handshake(stream)?;                    
+            
             self.connection_stream = Some(stream);
             Ok(())
         } else {

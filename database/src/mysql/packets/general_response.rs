@@ -1,7 +1,6 @@
 extern crate bitflags;
 
 use ::std::io::{BufReader, Read,};
-use ::std::net::TcpStream;
 use mysql::packets::{Header, ReadablePacket};
 use mysql::packets::protocol_types::*;
 use mysql::packets::protocol_reader::ProtocolTypeReader;
@@ -14,30 +13,20 @@ pub enum GeneralResponses{
     Error(ErrPacket41)
 }
 
-impl GeneralResponses {
+impl ReadablePacket for GeneralResponses {
     //TODO: BufReader seek supposedly discards the buffer, which means, I think, that the packet reads will fail...
-    pub fn read(stream: &mut TcpStream) -> Result<GeneralResponses, String> {
-        let mut buffer = [0_u8; 5];
-        match stream.peek(&mut buffer) {
-            Err(e) => Err(format!("{}",e)),
-            Ok(5) => match buffer[4] {
-                0x00 | 0xFE => {
-                    Ok(GeneralResponses::Okay(OkPacket41::read(&mut BufReader::new(stream))?))
-                },
-                0xFF => {
-                    Ok(GeneralResponses::Error(ErrPacket41::read(&mut BufReader::new(stream))?))
-                },
-                _ => Err(format!("Unexpected response packet identifier: {}", buffer[4]))
-            },
-            _ => Err(format!("Could not read enough bytes to determine server's response packet type"))
+    fn read<R: Read>(buffer: &mut BufReader<R>, header: &Header) -> Result<GeneralResponses, String> {
+        let identifier = buffer.next_u8()?;
+        match identifier {
+            0x00 =>  Ok(GeneralResponses::Okay(OkPacket41::read(buffer, header)?)),
+            0xFF => Ok(GeneralResponses::Error(ErrPacket41::read(buffer, header)?)),
+            _ => Err(format!("Unexpected response packet identifier: {}", identifier))
         }
     }
 }
 
 #[allow(dead_code)]
 pub struct OkPacket41 {
-    header: Header,
-    identifier: u8,
     affected_rows: LengthInteger,
     last_insert_id: LengthInteger,
     status_flags: ServerStatus,
@@ -55,16 +44,7 @@ impl OkPacket41 {
 }
 
 impl ReadablePacket for OkPacket41 {
-    fn read<R: Read>(reader: &mut BufReader<R>) -> Result<OkPacket41, String> {
-        let header = Header::read(reader)?;
-
-        let identifier = reader.next_u8()?;
-        match identifier {
-            0x00 => (),
-            0xFE => (), //maybe do packet size checking?
-            _ => return Err(String::from("OK packet identifying byte was not present"))
-        }
-
+    fn read<R: Read>(reader: &mut BufReader<R>, header: &Header) -> Result<OkPacket41, String> {
         let affected_rows = reader.next_length_integer()?;
         let last_insert_id = reader.next_length_integer()?;
 
@@ -93,8 +73,6 @@ impl ReadablePacket for OkPacket41 {
         }
 
         Ok(OkPacket41{
-            header,
-            identifier,
             affected_rows,
             last_insert_id,
             status_flags,
@@ -108,8 +86,6 @@ impl ReadablePacket for OkPacket41 {
 
 #[allow(dead_code)]
 pub struct ErrPacket41 {
-    header: Header,
-    identifier: u8,
     error_code: u16,
     state_marker: String, //fixed length: 1
     state: String, //fixed length 5
@@ -128,14 +104,7 @@ impl ErrPacket41 {
 }
 
 impl ReadablePacket for ErrPacket41 {
-    fn read<R: Read>(reader: &mut BufReader<R>) -> Result<ErrPacket41,String> {
-        let header = Header::read(reader)?;
-
-        let identifier = reader.next_u8()?;
-        if identifier != 0xFF {
-            return Err(String::from("Error packet identifier was not expected value"))
-        }
-
+    fn read<R: Read>(reader: &mut BufReader<R>, header: &Header) -> Result<ErrPacket41,String> {
         let error_code = reader.next_u16()?;
         let state_marker = reader.next_fixed_string(1)?;
         let state = reader.next_fixed_string(5)?;
@@ -144,8 +113,6 @@ impl ReadablePacket for ErrPacket41 {
         let error_message = reader.next_fixed_string(bytes_left as u64)?;
 
         Ok(ErrPacket41{
-            header,
-            identifier,
             error_code,
             state_marker,
             state,
@@ -176,8 +143,6 @@ bitflags! {
 
 #[allow(dead_code)]
 pub struct EofPacket41 {
-    header: Header,
-    identifier: u8, //0xFE
     warning_count: u16,
     status_flags: ServerStatus
 }

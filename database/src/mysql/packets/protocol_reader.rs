@@ -3,15 +3,13 @@ use std::io::BufRead;
 use std::io::Read;
 
 use mysql::packets::protocol_types::*;
+use mysql::packets::bytes::Endian;
 
 //TODO: make the buf reader operations safer - if the stream terminates or the packet is not well formed, things may not go well, especially for read_exact
 
-enum Endian {
-    Little,
-    Big
-}
 
-trait ProtocolTypeConverter {
+
+pub trait ProtocolTypeConverter {
     fn to_u8(&self) -> u8;
     fn to_u16(&self, order: Endian) -> u16;
     fn to_u24(&self, order: Endian) -> u24;
@@ -139,7 +137,7 @@ impl<R> ProtocolTypeReader for BufReader<R> where R: ::std::io::Read { //we can 
             LengthInteger::TWO_BYTE_PREFIX => val = read_exact(self, 2)?.to_u16(Endian::Big) as u64,
             LengthInteger::THREE_BYTE_PREFIX => val = read_exact(self, 3)?.to_u24(Endian::Big).0 as u64,
             LengthInteger::EIGHT_BYTE_PREFIX => val = read_exact(self, 8)?.to_u64(Endian::Big),
-            0xFF => return Err(String::from("Expected fixed length integer, but first byte was invalid (0xFF)")),
+            0xFB | 0xFF => return Err(format!("Expected fixed length integer, but first byte was invalid ({})", length)),
             _ => val = length as u64
         }
 
@@ -154,7 +152,7 @@ impl<R> ProtocolTypeReader for BufReader<R> where R: ::std::io::Read { //we can 
     }
 }
 
-fn read_exact<R>(reader: &mut BufReader<R>, count: u8) -> Result<Vec<u8>,String> where R: ::std::io::Read {
+pub fn read_exact<R>(reader: &mut BufReader<R>, count: u8) -> Result<Vec<u8>,String> where R: ::std::io::Read {
     if count == 0 {
         return Ok(vec!())
     }

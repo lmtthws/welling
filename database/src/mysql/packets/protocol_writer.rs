@@ -1,5 +1,6 @@
 use ::std::io::{BufWriter, Write};
 use mysql::packets::protocol_types::*;
+use mysql::packets::bytes::get_bytes;
 
 pub trait ProtocolIntConverter<FixedInteger> {
     fn to_fixed_integer(self) -> FixedInteger;
@@ -32,14 +33,6 @@ impl ProtocolIntConverter<FixedInteger> for u32 {
         bytes.reverse();
         FixedInteger::Int4(bytes)
     }
-}
-
-pub fn get_bytes(num: u32) -> [u8;4] {
-    let first : u8 = ((num >> 24) & 0xff) as u8;
-    let second : u8 = ((num >> 16) & 0xff) as u8;
-    let third : u8 = ((num >> 8) & 0xff) as u8;
-    let fourth : u8 = (num & 0xff) as u8;
-    [first, second, third, fourth]
 }
 
 trait ProtocolTypeConverter {

@@ -8,8 +8,20 @@ pub struct AuthPlugin {
     pub auth_data: String,
 }
 
+
+pub struct AuthMoreData {
+    more_data: String
+}
+
+impl ReadablePacket for AuthMoreData {
+     fn read<R: Read>(reader: &mut BufReader<R>, header: &Header) -> Result<AuthMoreData,String> {
+        let more_data = reader.next_fixed_string(u64::from(header.packet_len()))?;
+        Ok(AuthMoreData{ more_data })
+     }
+}
+
+
 pub struct AuthSwitchRequest {
-    header: Header,
     plugin: AuthPlugin
 }
 
@@ -19,28 +31,17 @@ impl AuthSwitchRequest {
     pub fn plugin(&self) -> &AuthPlugin {
         &self.plugin
     }
-
-    pub fn header(&self) -> &Header {
-        &self.header
-    }
 }
 
-impl ReadablePacket for AuthSwitchRequest {
-    fn read<R: Read>(reader: &mut BufReader<R>) -> Result<AuthSwitchRequest,String> {
-        let header = Header::read(reader)?;
-        
-        let status = reader.next_u8()?;
-        if status != 0xFE {
-            return Err(String::from("Identifier in packet was not for an authentication switch"))
-        }
 
+impl ReadablePacket for AuthSwitchRequest {
+    fn read<R: Read>(reader: &mut BufReader<R>, header: &Header) -> Result<AuthSwitchRequest,String> {
         let plugin_name = reader.next_null_string()?;
 
         let bytes_to_read: u64 = header.packet_len().0 as u64 - AuthSwitchRequest::MIN_SIZE - plugin_name.len() as u64;
         let auth_data = reader.next_fixed_string(bytes_to_read)?;
 
         Ok(AuthSwitchRequest{
-            header,
             plugin: AuthPlugin {
                 name: plugin_name,
                 auth_data
@@ -49,30 +50,32 @@ impl ReadablePacket for AuthSwitchRequest {
     }
 }
 
+
+
+
 pub struct AuthSwitchResponse {
-    header: Header,
     auth_data: String,
 }
 
 impl AuthSwitchResponse {
-    pub fn new(auth_data: String, sequence_id: u8) -> Result<AuthSwitchResponse,String> {
-        if auth_data.len() as u64 > u24::MAX as u64 {
-            return Err(String::from("Authentication response data is too large for a single response packet"));
-        }
-        
-        let header = Header::new(u24(auth_data.len() as u32), sequence_id);
-        Ok(AuthSwitchResponse {
-            header,
-            auth_data
-        })
+    pub fn new(auth_data: String) -> AuthSwitchResponse {
+        AuthSwitchResponse{ auth_data }
     }
 }
 
+
 impl WriteablePacket for AuthSwitchResponse {
     fn write<W: Write>(&self, writer: &mut BufWriter<W>) -> Result<(), ::std::io::Error> {
-        self.header.write(writer)?;
         write!(writer, "{}", self.auth_data)?;
         Ok(())
+    }
+
+    fn calculate_header_size(&self) -> Result<u24, String> {
+        if self.auth_data.len() as u64 > u24::MAX as u64 {
+            Err(String::from("Authentication response data is too large for a single response packet"))
+        } else {
+            Ok(u24(self.auth_data.len() as u32))
+        }
     }
 }
 

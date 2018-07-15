@@ -1,54 +1,92 @@
 pub mod handshake;
-pub mod protocol_types;
-pub mod general_response;
-pub mod protocol_reader;
-pub mod protocol_writer;
+mod protocol_types;
+mod general_response;
+mod protocol_reader;
+mod protocol_writer;
+mod bytes;
 pub mod command;
 
+pub use self::protocol_reader::ProtocolTypeReader;
+pub use self::protocol_writer::ProtocolTypeWriter;
+pub use self::general_response::*;
+pub use self::protocol_types::*;
+pub use self::bytes::get_bytes;
+
 use std::marker::Sized;
-use std::io::{BufReader, Read, BufWriter, Write, ErrorKind};
+use std::io::{BufReader, Read, BufWriter, Write};
 
-use self::protocol_types::u24;
-use self::protocol_reader::ProtocolTypeReader;
-use self::protocol_writer::ProtocolTypeWriter;
 
+pub struct ServerPacket<RP: ReadablePacket> {
+    header: Header,
+    payload: RP
+}
+
+impl<RP: ReadablePacket> ServerPacket<RP> {
+    pub fn read<R: Read>(buffer: &mut BufReader<R>) -> Result<Self, String> where Self: Sized {
+        let payload_length = buffer.next_u24()?;
+        let sequence_id = buffer.next_u8()?;
+
+        let header = Header::new(payload_length, sequence_id);
+        let payload = RP::read(buffer, &header)?;
+
+        Ok(ServerPacket{header, payload})
+    }
+
+    pub fn sequence_id(&self) -> u8 {
+        self.header.sequence_id
+    }
+
+    pub fn payload(&self) -> &RP {
+        &self.payload
+    }
+}
+
+
+
+pub struct ClientPacket<WP: WriteablePacket> {
+    header: Header,
+    packet: WP
+}
+
+impl<WP: WriteablePacket> ClientPacket<WP> {
+    pub fn new(packet: WP, sequence_id: u8) -> Result<ClientPacket<WP>,String> {
+        let header = Header {
+            payload_length: packet.calculate_header_size()?,
+            sequence_id
+        };
+        Ok(ClientPacket { header, packet })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut BufWriter<W>) -> Result<(),::std::io::Error>  { 
+        writer.write_u24(self.header.packet_len())?;
+        writer.write_u8(self.header.sequence_id())?;
+        self.packet.write(writer)?;
+        Ok(())
+    }
+}
 
 
 
 pub trait ReadablePacket {
-    fn read<R: Read>(buffer: &mut BufReader<R>) -> Result<Self,String> where Self: Sized;
+    fn read<R: Read>(buffer: &mut BufReader<R>, header: &Header) -> Result<Self,String> where Self: Sized;
 }
+
 pub trait WriteablePacket {
     fn write<W: Write>(&self, writer: &mut BufWriter<W>) -> Result<(),::std::io::Error>;
+    fn calculate_header_size(&self) -> Result<u24, String>;
 }
-
-
 
 pub struct Header {
     payload_length: u24,
     sequence_id: u8,
-    is_unsized: bool
 }
 
 impl Header {
-    pub fn new_unsized(sequence_id: u8) -> Header {
-        Header {
-            payload_length: u24(0),
-            sequence_id,
-            is_unsized: true
-        }
-    }
-
     pub fn new(payload_length: u24, sequence_id: u8) -> Header {
         Header {
             payload_length,
             sequence_id,
-            is_unsized: false
         }
-    }
-
-    pub fn is_unsized(&self) -> bool {
-        self.is_unsized
     }
 
     pub fn expect_more_packets(&self) -> bool {
@@ -64,27 +102,4 @@ impl Header {
     }
 }
 
-impl ReadablePacket for Header {
-    fn read<R: Read>(buffer: &mut BufReader<R>) -> Result<Header,String> {
-        let payload_length = buffer.next_u24()?;
-        let sequence_id = buffer.next_u8()?;
 
-        Ok(Header{
-            payload_length,
-            sequence_id,
-            is_unsized: false,
-        })
-    }
-}
-
-impl WriteablePacket for Header {
-    fn write<W: Write>(&self, writer: &mut BufWriter<W>) -> Result<(),::std::io::Error>  {
-        if self.is_unsized {
-            return Err(::std::io::Error::from(ErrorKind::InvalidInput))
-        }
-        
-        writer.write_u24(self.payload_length)?;
-        writer.write_u8(self.sequence_id)?;
-        Ok(())
-    }
-}

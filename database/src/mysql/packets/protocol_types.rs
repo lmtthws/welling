@@ -8,6 +8,12 @@ impl u24 {
     pub const MAX: u32 = 1 << 24;
 }
 
+impl From<u24> for u64 {
+    fn from(u: u24) -> Self {
+        u.0 as u64
+    }
+}
+
 
 #[derive(Clone)]
 pub enum FixedInteger {

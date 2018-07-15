@@ -8,7 +8,6 @@ use mysql::packets::protocol_reader::ProtocolTypeReader;
 use mysql::packets::handshake::authentication::AuthPlugin;
 
 pub struct RequestV10 {
-    pub header: Header,
     pub version: u8,
     pub server_version: String,
     pub thread_id: u32,
@@ -30,9 +29,7 @@ impl RequestV10 {
 
 impl ReadablePacket for RequestV10 {
 
-    fn read<R: Read>(reader: &mut BufReader<R>) -> Result<RequestV10,String> {
-        let header = Header::read(reader)?;
-
+    fn read<R: Read>(reader: &mut BufReader<R>, header: &Header) -> Result<RequestV10,String> {
         let protocol_version;
         match reader.next_u8() {
             Ok(v) => protocol_version = v,
@@ -84,7 +81,6 @@ impl ReadablePacket for RequestV10 {
         }
 
         Ok(RequestV10 {
-            header,
             version: protocol_version,
             server_version,   
             thread_id,

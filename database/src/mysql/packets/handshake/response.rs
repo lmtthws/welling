@@ -9,7 +9,6 @@ use mysql::packets::protocol_types::*;
 
 //verify Capabilities::client_protocol_41 else should do 320, but our server will support 41 and we support 41, so...
 pub struct Response41 {
-    pub header: Header,
     pub capabilities: Capabilities,
     pub max_packet_size: u32,
     pub char_set: u8,
@@ -22,31 +21,11 @@ pub struct Response41 {
 }
 
 impl Response41 {
-    pub const MINIMUM_SIZE: u32 = 4 + 4 + 1;
-
-    pub fn calculate_header_size(&mut self) -> Result<(),String> {
-        
-        let mut size = Response41::MINIMUM_SIZE as u64;
-        size += self.username.packet_size();
-        size += self.auth_response.packet_size();
-        if let Some(ref db) = self.init_database { size += db.packet_size(); }
-        if let Some(ref plug) = self.auth_plugin_name { size += plug.packet_size(); }
-        if let Some(ref attr) = self.connection_attributes { size += attr.packet_size(); }
-        
-        if size > u24::MAX as u64 {
-            return Err(String::from("Handshake response exceeds maximum response packet length"))
-        }
-
-        self.header = Header::new(u24(size as u32), self.header.sequence_id());
-        Ok(())
-    }
+    const MINIMUM_SIZE: u32 = 4 + 4 + 1;
 }
 
 impl WriteablePacket for Response41 {
     fn write<W: Write>(&self, writer: &mut BufWriter<W>) -> Result<(),::std::io::Error> {
-    
-       self.header.write(writer)?;
-       
        write!(writer, "{}", self.capabilities.bits())?;
        write!(writer, "{}", self.max_packet_size)?;
        write!(writer, "{}", self.char_set)?;
@@ -66,6 +45,21 @@ impl WriteablePacket for Response41 {
        }
 
        Ok(())
+    }
+
+    fn calculate_header_size(&self) -> Result<u24,String> {
+        let mut size = Response41::MINIMUM_SIZE as u64;
+        size += self.username.packet_size();
+        size += self.auth_response.packet_size();
+        if let Some(ref db) = self.init_database { size += db.packet_size(); }
+        if let Some(ref plug) = self.auth_plugin_name { size += plug.packet_size(); }
+        if let Some(ref attr) = self.connection_attributes { size += attr.packet_size(); }
+        
+        if size > u24::MAX as u64 {
+            Err(String::from("Handshake response exceeds maximum response packet length"))
+        } else {
+            Ok(u24(size as u32))
+        }
     }
 }
 

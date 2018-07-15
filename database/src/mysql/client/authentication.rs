@@ -1,8 +1,8 @@
 extern crate ring;
 extern crate simple_logger;
 
-use mysql::packets::handshake::authentication::AuthPlugin;
-use mysql::packets::protocol_writer;
+use mysql::packets;
+use mysql::packets::handshake::AuthPlugin;
 use std::convert::From;
 use std::fmt::{Display, Formatter};
 use {ConnectionInfo};
@@ -104,8 +104,8 @@ fn old_password_hash(password: &str) -> [u8;8] {
     debug!("{}",nr2);
 
     let mut hash_bytes = [0_u8;8];
-    hash_bytes[0..4].clone_from_slice(&protocol_writer::get_bytes(nr as u32));
-    hash_bytes[4..8].clone_from_slice(&protocol_writer::get_bytes(nr2 as u32));
+    hash_bytes[0..4].clone_from_slice(&packets::get_bytes(nr as u32));
+    hash_bytes[4..8].clone_from_slice(&packets::get_bytes(nr2 as u32));
 
     hash_bytes
 }

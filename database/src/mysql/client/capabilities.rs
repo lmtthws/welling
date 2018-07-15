@@ -1,4 +1,4 @@
-use mysql::packets::handshake::request::RequestV10;
+use mysql::packets::handshake::RequestV10;
 
 bitflags! {
     pub struct Capabilities: u32 {
@@ -43,7 +43,7 @@ pub fn client_capabilities() -> Capabilities {
    
     & Capabilities::CLIENT_IGNORE_SPACE // allows for whitespace before '('
     & Capabilities::CLIENT_DEPRECATE_EOF //expect an OK packet instead of EOF_Packet
-    & Capabilities::CLIENT_OPTIONAL_RESULTSET_METADATA //column metadata does not have to be included in every Text ResultSet
+    // & Capabilities::CLIENT_OPTIONAL_RESULTSET_METADATA //column metadata does not have to be included in every Text ResultSet
    // & Capabilities::CLIENT_SESSION_TRACK //provides human readable status information & allow server to send the ServerStatus::Server_SESSION_STATE_CHANGED flag
     /*
     & Capabilitites::CLIENT_CONNECT_ATTR
@@ -51,8 +51,4 @@ pub fn client_capabilities() -> Capabilities {
     & Capabilities::CLIENT_MULTI_STATEMENTS
     & Capabilities::CLIENT_TRANSACTION
     */
-}
-
-pub fn server_has_capability(server_handshake: RequestV10, capability: Capabilities) -> bool {
-    server_handshake.capabilities.contains(capability)
 }
