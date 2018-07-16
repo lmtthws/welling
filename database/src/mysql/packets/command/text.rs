@@ -1,18 +1,40 @@
-use mysql::packets::{Header, WriteablePacket, ReadablePacket};
-use ::std::io::{Read, Write, BufReader, BufWriter, Cursor, Seek};
+use ::std::io::{Read, BufReader, Cursor, Write, BufWriter};
+use ::std::u8;
+
+use {QueryResult, DataTable};
+use mysql::packets::{Header, ReadablePacket};
 use mysql::packets::*;
 use mysql::packets::command::SupportedCommands;
 use mysql::packets::command::column::{ColumnDefinition, ColumnCount};
 use mysql::packets::command::row::ResultSetRow;
 use mysql::packets::protocol_reader;
 
-use ::std::u8;
-
-pub struct Request {
-    header: Header,
+pub struct QueryRequest {
     server_command: SupportedCommands,
     text: String
 }
+impl QueryRequest {
+    pub fn new(query: String) -> QueryRequest {
+        QueryRequest {
+            text: query, 
+            server_command: SupportedCommands::COM_QUERY
+        }
+    }
+}
+
+impl WriteablePacket for QueryRequest {
+    fn write<W: Write>(&self, writer: &mut BufWriter<W>) -> Result<(),::std::io::Error> {
+       write!(writer, "{}", self.server_command)?;
+       write!(writer, "{}", self.text)?;
+       Ok(())
+    }
+
+    fn calculate_header_size(&self) -> Result<u24,String> {
+        Ok(u24(1 + self.text.len() as u32))
+    }
+}
+
+
 
 
 pub enum QueryResponse {
@@ -98,6 +120,22 @@ impl ReadablePacket for TextResultSet {
         }
         
         Ok(TextResultSet{column_count, column_definitions, marker, results, terminator})
+    }
+}
+
+impl TextResultSet {
+    pub fn to_query_result(&self) -> QueryResult {
+        match self.terminator {
+            GeneralResponses::Error(ref e) => QueryResult::Error(format!("{}", e)),
+            GeneralResponses::Okay(ref ok) => {
+                if self.results.len() == 0 {
+                    QueryResult::AffectedRows(ok.affected_rows())
+                } else {
+                    //TODO: implement, after deciding what this looks like...
+                    QueryResult::Rows(DataTable {})
+                }
+            }
+        }       
     }
 }
 

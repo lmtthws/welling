@@ -27,6 +27,7 @@ pub fn get_client(client_type: SupportedClient, server_details: ConnectionInfo) 
 
 pub trait DatabaseClient {
     fn connect(&mut self) -> Result<(),String>;
+    fn query(&mut self, query: String) -> Result<QueryResult,String>;
 }
 
 pub enum SupportedClient {
@@ -35,6 +36,17 @@ pub enum SupportedClient {
 
 pub trait AuthCredentials {
     fn get_credentials() -> String;
+}
+
+pub enum QueryResult {
+    Okay,
+    AffectedRows(u64),
+    Error(String),
+    Rows(DataTable)
+}
+
+pub struct DataTable {
+
 }
 
 

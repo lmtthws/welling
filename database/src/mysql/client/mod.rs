@@ -4,12 +4,12 @@ pub mod authentication;
 use mysql::client::capabilities::Capabilities;
 use mysql::client::authentication::{SupportedAuthMethods, AuthenticationResponse};
 use mysql::packets::handshake::*;
+use mysql::packets::command::*;
 use mysql::packets::*;
 use ::std::net::{TcpStream,Shutdown};
-use {DatabaseClient, ConnectionInfo};
 use ::std::io::{BufReader,BufWriter};
 use ::std::u8;
-
+use {DatabaseClient, ConnectionInfo, QueryResult};
 
 pub(crate) struct MySqlClient {
     server_details: ConnectionInfo,
@@ -45,8 +45,8 @@ impl MySqlClient {
         }
     }
 
-    fn build_handshake_response(&self, requestPacket: ServerPacket<RequestV10>) -> Result<ClientPacket<Response41>,String> {
-        let request = requestPacket.payload();
+    fn build_handshake_response(&self, request_packet: ServerPacket<RequestV10>) -> Result<ClientPacket<Response41>,String> {
+        let request = request_packet.payload();
 
         let capabilities = self.client_options.capabilities & request.capabilities;
                 
@@ -62,7 +62,7 @@ impl MySqlClient {
         
         //TODO: handle the case where auth data is between 251 and 255 in length (not a length integer but valid in this case)
         if auth_response.size().value() > (u8::MAX as u64) && !capabilities.contains(Capabilities::CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA) {
-            return self.handshake_err(String::from("Authentication data exceeded max allowed value for server"), None)
+            return Err(String::from("Authentication data exceeded max allowed value for server"))
         }
 
         let username = NullTerminatedString::from(&self.server_details.username[0..]);
@@ -93,7 +93,11 @@ impl MySqlClient {
             connection_attributes: None,
         };
 
-        ClientPacket::<Response41>::new(response, requestPacket.sequence_id())
+        ClientPacket::<Response41>::new(response, request_packet.sequence_id())
+    }
+
+    fn check_connection(&self) -> bool {
+        self.connection_stream.is_some()
     }
 
     fn generate_auth_response(&self, auth_plugin: &Option<&AuthPlugin>) -> Result<AuthenticationResponse,String> {
@@ -106,17 +110,11 @@ impl MySqlClient {
 
         match auth_method.get_auth_response_value(&self.server_details, auth_plugin) {
             Ok(s) => Ok(AuthenticationResponse::new(auth_method, s)),
-            Err(e) => return self.handshake_err(String::from("Unable to generate authentication data"), Some(e))
+            Err(e) => return Err(compound_error(String::from("Unable to generate authentication data"), Some(e)))
         }
     }
 
-    fn handshake_err<T>(&self, mut new_err: String, base_err: Option<String>) -> Result<T,String> {
-        if let Some(ref e) = base_err {
-            new_err.push_str(": ");
-            new_err.push_str(e);
-        }
-        return Err(new_err)
-    }
+
 
     fn continue_authentication(&self, auth_switch_req: &AuthSwitchRequest, sequence_id: u8, stream: &mut TcpStream) -> Result<(),String>
     {
@@ -136,8 +134,7 @@ impl MySqlClient {
         match ServerPacket::<HandshakeServerResponse>::read(&mut BufReader::new(&mut stream)) {
             Ok(response) => server_response = response,
             Err(e) => {
-                stream.shutdown(Shutdown::Both).unwrap_or(());
-                return self.handshake_err(String::from("Failed to read server's response"),Some(format!("{}",e)))
+                return terminate_connection(stream, compound_error(String::from("Failed to read server's response"),Some(format!("{}",e))))
             }
         }
 
@@ -146,20 +143,15 @@ impl MySqlClient {
             HandshakeServerResponse::AuthSwitch(ref auth_req) => {
                 let auth_continue_result = self.continue_authentication(auth_req, server_response.sequence_id(), &mut stream);
                 match auth_continue_result {
-                    Err(e) => {
-                        stream.shutdown(Shutdown::Both).unwrap_or(());
-                        return self.handshake_err(String::from("Authentication failed"), Some(format!("{}",e)));
-                    },
-                    Ok(()) => return self.wrapup_handshake(stream)
+                    Err(e) => terminate_connection(stream, compound_error(String::from("Authentication failed"), Some(format!("{}",e)))),
+                    Ok(()) => self.wrapup_handshake(stream)
                 }
             },
             HandshakeServerResponse::MoreAuthData(_) => {
-                stream.shutdown(Shutdown::Both).unwrap_or(());
-                return self.handshake_err(String::from("Server responded with AuthMoreData packet"), Some(String::from("Authentication methods requiring multiple exchanges not yet supported")))
+                terminate_connection(stream, compound_error(String::from("Server responded with AuthMoreData packet"), Some(String::from("Authentication methods requiring multiple exchanges not yet supported"))))
             }
             HandshakeServerResponse::Error(ref e) => {
-                stream.shutdown(Shutdown::Both).unwrap_or(());
-                return self.handshake_err(String::from("Server responded with error"), Some(format!("{}: {}", e.error_code(), e.error_message())))
+                terminate_connection(stream, compound_error(String::from("Server responded with error"), Some(format!("{}",e))))
             }
         } 
     }
@@ -190,8 +182,7 @@ impl DatabaseClient for MySqlClient {
             match ServerPacket::<RequestV10>::read(&mut BufReader::new(&mut stream)) {
                 Ok(r) => request = r,
                 Err(e) => {
-                    stream.shutdown(Shutdown::Both).unwrap_or(());
-                    return self.handshake_err(String::from("Unable to read initial handshake packet"), Some(e))
+                    return terminate_connection(stream, compound_error(String::from("Unable to read initial handshake packet"), Some(e)))
                 }
             }
 
@@ -199,8 +190,7 @@ impl DatabaseClient for MySqlClient {
             match self.build_handshake_response(request) {
                 Ok(r) => response = r,
                 Err(e) => {
-                    stream.shutdown(Shutdown::Both).unwrap_or(());
-                    return Err(e)
+                    return terminate_connection(stream, e)
                 }
             }
 
@@ -208,8 +198,7 @@ impl DatabaseClient for MySqlClient {
             match write_outcome {
                 Ok(_) => (),
                 Err(e) => {
-                    stream.shutdown(Shutdown::Both).unwrap_or(());
-                    return self.handshake_err(String::from("Failed to send response packet"), Some(format!("{}",e)))
+                    return terminate_connection(stream, compound_error(String::from("Failed to send response packet"), Some(format!("{}",e))))
                 }
             }
 
@@ -221,4 +210,58 @@ impl DatabaseClient for MySqlClient {
             return Err(String::from("Unable to open TCP connection to designated host"))
         }
     }
+
+    fn query(&mut self, query: String) -> Result<QueryResult,String> {
+        if !self.check_connection() { 
+            return Err(String::from("Connection to the database server was closed"))
+        }
+
+        let stream = self.connection_stream.take();
+        let mut stream = stream.unwrap();
+
+        let query_request = QueryRequest::new(query);
+        let query_request = ClientPacket::<QueryRequest>::new(query_request, 1)?;
+
+        let query_send_outcome = query_request.write(&mut BufWriter::new(&mut stream));
+        match query_send_outcome {
+            Ok(()) => (),
+            Err(e) => return terminate_connection(stream, format!("{}",e))
+        }
+        
+        let query_response_pkt: ServerPacket<QueryResponse>;
+        match ServerPacket::<QueryResponse>::read(&mut BufReader::new(&mut stream)) {
+            Ok(s) => query_response_pkt = s,
+            Err(e) => return terminate_connection(stream, format!("{}",e))
+        }
+        
+        let outcome: QueryResult;
+        match query_response_pkt.payload() {
+            QueryResponse::Error(e) => outcome = QueryResult::Error(format!("{}",e)),
+            QueryResponse::LocalInfile(_) => {
+                //TODO: if implemented, do back and forth
+                return terminate_connection(stream, String::from("not supported"))
+            },
+            QueryResponse::Okay(_) => outcome = QueryResult::Okay,
+            QueryResponse::ResultSet(results) => {
+                //TODO: if allowing multiple result sets, do back and forth to construct complete set
+               outcome = results.to_query_result();
+            }
+        }
+
+        self.connection_stream = Some(stream);
+        Ok(outcome)
+    }
+}
+
+fn terminate_connection<T>(stream: TcpStream, error_message: String) -> Result<T,String> {
+    stream.shutdown(Shutdown::Both).unwrap_or(());
+    Err(error_message)
+}
+
+fn compound_error(mut new_err: String, base_err: Option<String>) -> String {
+    if let Some(ref e) = base_err {
+        new_err.push_str(": ");
+        new_err.push_str(e);
+    }
+    return new_err
 }

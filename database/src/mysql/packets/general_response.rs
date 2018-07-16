@@ -1,6 +1,8 @@
 extern crate bitflags;
 
 use ::std::io::{BufReader, Read,};
+use ::std::fmt::{Display, Formatter, Error};
+
 use mysql::packets::{Header, ReadablePacket};
 use mysql::packets::protocol_types::*;
 use mysql::packets::protocol_reader::ProtocolTypeReader;
@@ -41,6 +43,10 @@ pub struct OkPacket41 {
 
 impl OkPacket41 {
     const MINIMUM_SIZE: u32 = 1 + 1 + 1 + 2 + 2; //id rows(>1) insert(>1) status(2) warnings(2)
+
+    pub fn affected_rows(&self) -> u64 {
+        self.affected_rows.value() as u64
+    }
 }
 
 impl ReadablePacket for OkPacket41 {
@@ -101,6 +107,12 @@ impl ErrPacket41 {
     pub fn error_message(&self) -> &str {
         &*self.error_message
     }
+}
+
+impl Display for ErrPacket41 {
+     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+         write!(f,"{}: {}", self.error_code(), self.error_message())
+     }
 }
 
 impl ReadablePacket for ErrPacket41 {

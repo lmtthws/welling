@@ -1,9 +1,13 @@
-pub mod column;
-pub mod text;
-pub mod row;
+use std::fmt::{Display, Formatter, Error};
+
+mod column;
+mod text;
+mod row;
+
+pub use self::text::*;
 
 
-pub enum SupportedCommands {
+enum SupportedCommands {
     //COM_SLEEP,
     COM_QUIT,
     COM_INIT_DB,
@@ -59,6 +63,12 @@ impl SupportedCommands {
             SupportedCommands::COM_STMT_FETCH => 29,
             SupportedCommands::COM_RESET_CONNECTION => 32
         }
+    }
+}
+
+impl Display for SupportedCommands {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+        write!(f, "{}", self.identifier())
     }
 }
 
