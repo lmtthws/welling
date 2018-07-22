@@ -1,7 +1,7 @@
 use ::std::io::{Read, BufReader, Cursor, Write, BufWriter};
 use ::std::u8;
 
-use {QueryResult, DataTable};
+use *;
 use mysql::packets::{Header, ReadablePacket};
 use mysql::packets::*;
 use mysql::packets::command::SupportedCommands;
@@ -124,15 +124,21 @@ impl ReadablePacket for TextResultSet {
 }
 
 impl TextResultSet {
-    pub fn to_query_result(&self) -> QueryResult {
+    pub fn to_query_result(self) -> Result<QueryResult,String> {
         match self.terminator {
-            GeneralResponses::Error(ref e) => QueryResult::Error(format!("{}", e)),
+            GeneralResponses::Error(ref e) => Ok(QueryResult::Error(format!("{}", e))),
             GeneralResponses::Okay(ref ok) => {
                 if self.results.len() == 0 {
-                    QueryResult::AffectedRows(ok.affected_rows())
+                    Ok(QueryResult::AffectedRows(ok.affected_rows()))
                 } else {
-                    //TODO: implement, after deciding what this looks like...
-                    QueryResult::Rows(DataTable {})
+                    let col_collection = self.column_definitions.iter().map(|cd| cd.to_data_col()).collect::<Vec<DataColumn>>();
+                    
+                    let rows = match self.results.into_iter().map(|r| r.to_data_row((&col_collection).into_iter())).collect() {
+                        Ok(rs) => rs,
+                        Err(e) => return Err(e)
+                    };
+
+                    Ok(QueryResult::Rows(DataTable::build(col_collection, rows )))
                 }
             }
         }       

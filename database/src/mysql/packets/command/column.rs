@@ -1,3 +1,4 @@
+use data::DataColumn;
 use mysql::data::column::{ColFieldType, ColumnDefinitionFlags};
 use mysql::packets::*;
 
@@ -80,5 +81,16 @@ impl ReadablePacket for ColumnDefinition {
         Ok(ColumnDefinition {
             catalog, schema, table, org_table, name, org_name, length, char_set, col_length, col_type, flags, decimals
         })
+    }
+}
+
+impl ColumnDefinition {
+    pub fn to_data_col(&self) -> DataColumn {
+        let col_type = self.col_type.to_data_col(self.flags);
+        DataColumn {
+            name: String::from(self.name.text()),
+            nullable: !self.flags.contains(ColumnDefinitionFlags::NOT_NULL),
+            col_type
+        }
     }
 }

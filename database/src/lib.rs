@@ -7,10 +7,15 @@ extern crate uri;
 extern crate ring;
 extern crate simple_logger;
 
-use mysql::client::MySqlClient;
 use uri::Uri;
 
+use self::mysql::client::MySqlClient;
+use self::data::DataTable;
+
 pub mod mysql;
+pub mod data;
+
+pub use self::data::*;
 
 pub struct ConnectionInfo {
     pub uri: Uri,
@@ -45,9 +50,7 @@ pub enum QueryResult {
     Rows(DataTable)
 }
 
-pub struct DataTable {
 
-}
 
 
 #[cfg(test)]

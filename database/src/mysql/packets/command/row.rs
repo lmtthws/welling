@@ -1,6 +1,7 @@
 use mysql::packets::*;
 use mysql::packets::bytes::Endian;
 use mysql::packets::protocol_reader::ProtocolTypeConverter;
+use data::*;
 
 pub enum RawValue {
     Null,
@@ -39,11 +40,54 @@ impl RawValue {
     }
 }
 
+impl CellReader for RawValue {
+    fn to_data_cell(&self, defn: &DataColumn) -> Result<DataCell,String> {
+        let value = match *self {
+            RawValue::Null => None,
+            RawValue::Valued(ref s) => 
+                Some( match *defn.col_type() {
+                    DataColType::SignedInt => match s.text().parse::<i64>() {
+                        Ok(i) => DataCellValue::SignedInteger(i),
+                        Err(e) => return Err(format!("{}",e))
+                    },
+                    DataColType::UnsignedInt => match s.text().parse::<u64>() {
+                        Ok(u) => DataCellValue::UnsignedInteger(u),
+                        Err(e) => return Err(format!("{}",e))
+                    },
+                    DataColType::Float => match s.text().parse::<f64>() {
+                        Ok(f) => DataCellValue::Float(f),
+                        Err(e) => return Err(format!("{}",e))
+                    },
+                    DataColType::Bool => match s.text().parse::<bool>() {
+                        Ok(b) => DataCellValue::Bool(b),
+                        Err(e) => return Err(format!("{}",e))
+                    },
+                    DataColType::VarChar => DataCellValue::VarChar(String::from(s.text())),
+                    DataColType::Timestamp => DataCellValue::Timestamp(s.text().parse::<Timestamp>()?)
+                })
+        };
+
+        Ok(DataCell::new(value))
+    }
+}
 
 pub struct ResultSetRow {
     col_count: LengthInteger,
     values: Vec<RawValue>,
     terminator: Option<EofPacket41>
+}
+
+impl ResultSetRow {
+    pub fn to_data_row<'a, I>(self, columns: I) -> Result<DataRow,String>
+        where I: Iterator<Item = &'a DataColumn>
+    {
+        let values = match columns.zip(self.values).map(|(c,v)| v.to_data_cell(c)).collect() {
+            Ok(vs) => vs,
+            Err(s) => return Err(s)
+        };
+
+        Ok(DataRow::new(values))
+    }
 }
 
 impl ReadablePacket for ResultSetRow {

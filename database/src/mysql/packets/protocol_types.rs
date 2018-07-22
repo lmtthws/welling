@@ -114,6 +114,10 @@ impl LengthEncodedString{
     pub fn size(&self) -> LengthInteger {
         self.0
     }
+
+    pub fn text(&self) -> &str {
+        &self.1
+    }
 }
 
 impl Display for LengthEncodedString {

@@ -235,7 +235,7 @@ impl DatabaseClient for MySqlClient {
         }
         
         let outcome: QueryResult;
-        match query_response_pkt.payload() {
+        match query_response_pkt.into_payload() {
             QueryResponse::Error(e) => outcome = QueryResult::Error(format!("{}",e)),
             QueryResponse::LocalInfile(_) => {
                 //TODO: if implemented, do back and forth
@@ -244,7 +244,7 @@ impl DatabaseClient for MySqlClient {
             QueryResponse::Okay(_) => outcome = QueryResult::Okay,
             QueryResponse::ResultSet(results) => {
                 //TODO: if allowing multiple result sets, do back and forth to construct complete set
-               outcome = results.to_query_result();
+               outcome = results.to_query_result()?;
             }
         }
 

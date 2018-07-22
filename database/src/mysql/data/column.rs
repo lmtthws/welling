@@ -1,5 +1,4 @@
-use mysql::packets::*;
-
+use data::DataColType;
 
 pub enum ColFieldType {
     Decimal,
@@ -23,7 +22,7 @@ pub enum ColFieldType {
     DateTime2,
     Time2,
     Json, //245
-    NewDeciaml, //246
+    NewDecimal, //246
     Enum, //247
     Set, //248
     TinyBlob, //249
@@ -59,7 +58,7 @@ impl ColFieldType {
             18 => Ok(ColFieldType::DateTime2),
             19 => Ok(ColFieldType::Time2),
             245 => Ok(ColFieldType::Json), //245
-            246 => Ok(ColFieldType::NewDeciaml), //246
+            246 => Ok(ColFieldType::NewDecimal), //246
             247 => Ok(ColFieldType::Enum), //247
             248 => Ok(ColFieldType::Set), //248
             249 => Ok(ColFieldType::TinyBlob), //249
@@ -70,6 +69,47 @@ impl ColFieldType {
             254 => Ok(ColFieldType::MySqlString), //254,
             255 => Ok(ColFieldType::Geometry), //255
             _ => Err(String::from("MySQL column type not recognized"))
+        }
+    }
+
+    pub fn to_data_col(&self, flags: ColumnDefinitionFlags) -> DataColType {
+        match *self {
+            ColFieldType::Tiny 
+            | ColFieldType::Short 
+            | ColFieldType::Long 
+            | ColFieldType::Int24 
+            | ColFieldType::LongLong => {
+                if flags.contains( ColumnDefinitionFlags::UNSIGNED) {
+                    DataColType::UnsignedInt
+                } else {
+                    DataColType::SignedInt
+                }
+            },
+            ColFieldType::Decimal 
+            | ColFieldType::Float 
+            | ColFieldType::Double 
+            | ColFieldType::NewDecimal => {
+                DataColType::Float
+            },
+            ColFieldType::Timestamp 
+            | ColFieldType::DateTime
+            | ColFieldType::Date
+            | ColFieldType::Time
+            | ColFieldType::Year
+            | ColFieldType::NewDate
+            | ColFieldType::Timestamp2
+            | ColFieldType::DateTime2
+            | ColFieldType::Time2 => {
+                DataColType::Timestamp
+            },
+            ColFieldType::Bit => {
+                DataColType::Bool
+            },
+            ColFieldType::VarChar
+            | ColFieldType::VarString => {
+                DataColType::VarChar
+            }
+            _ => panic!("Not supported")
         }
     }
 }
