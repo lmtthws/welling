@@ -1,0 +1,34 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "WebServer",
+            "type": "gdb",
+            "request": "launch",
+            "arguments": "",
+            "cwd": "${workspaceRoot}",
+            "target": "${workspaceRoot}/target/debug/web_server.exe",
+            "printCalls": false,
+            "autorun": [
+                "set substitute-path /checkout %RUSTUP_HOME%/toolchains/stable-x86_64-pc-windows-gnu/lib/rustlib/src/rust"
+            ],
+            "preLaunchTask": "rust-test-copier" 
+        },
+        {
+            "name": "Tests-uri",
+            "type": "gdb",
+            "request": "launch",
+            "arguments": "",
+            "cwd": "${workspaceRoot}",
+            "target": "${workspaceRoot}\\target\\debug\\deps\\${workspaceRootFolderName}\\tests\\uri.exe",
+            "printCalls": false,
+            "autorun": [
+                "set substitute-path /checkout %RUSTUP_HOME%/toolchains/stable-x86_64-pc-windows-gnu/lib/rustlib/src/rust"
+            ],
+            "preLaunchTask": "rust-test-copier" 
+        }
+    ]
+}

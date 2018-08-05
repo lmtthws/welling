@@ -1,15 +1,3 @@
-
-use data::Timestamp;
-
-/*
-pub enum DataColType {
-    SignedInt(i64),
-    UnsignedInt(u64),
-    Float(f64),
-    Timestamp(Timestamp),
-    Bool(bool),
-    VarChar(String)
-}*/
 pub enum DataColType {
     SignedInt,
     UnsignedInt,

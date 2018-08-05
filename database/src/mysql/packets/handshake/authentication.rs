@@ -8,7 +8,7 @@ pub struct AuthPlugin {
     pub auth_data: String,
 }
 
-
+#[allow(dead_code)]
 pub struct AuthMoreData {
     more_data: String
 }

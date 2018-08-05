@@ -3,7 +3,6 @@ use std::fmt::Formatter;
 use std::io::{BufWriter, Write};
 use std::fmt::Display;
 use mysql::client::capabilities::Capabilities;
-use mysql::packets::Header;
 use mysql::packets::WriteablePacket;
 use mysql::packets::protocol_types::*;
 

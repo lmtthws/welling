@@ -1,0 +1,104 @@
+1. Install GCC and GDB
+    - needs to match architecture of Rust Install
+        - e.g. mingw-w64
+    - also needs to support executing python in init
+        - I had a gdb in a Perl install location, but that one was not configured to allow python scripts and I had no idea how to configure it differently
+    - I used a Cygwin install, included gdb, and added the Cygwin\bin to my environment path to get this to work
+1.1 Configure the gdbinit file the gdb install references so that you can supply a .gdbinit file for your workspace 
+    - since I'm using cygwin, I can put this in {cygwin install location}/home/{me}/.gdbinit
+    - I opted to trust all init files instead of whitelisting. Not good security, but easy. I added the following line to the file:
+        set auto-load safe-path /
+1.2 Add a .gdbinit file to the workspace root. 
+    - I modeled it off the instructions here: https://medium.com/@royalstream/rust-development-using-vs-code-on-os-x-debugging-included-bc10c9863777
+    - Original: 
+        python
+        print “ — — Loading Rust pretty-printers — — “
+        sys.path.insert(0, “/usr/local/lib/rustlib/etc”)
+        import gdb_rust_pretty_printing
+        gdb_rust_pretty_printing.register_printers(gdb)
+        end
+    - Since we're on Windows, I modified it so I could import the script from its install location in %RUSTUP_HOME% for the toolchain I'm using (but for $RUSTUP_HOME, because this is the Cygwin binary, so it uses posix path vars):
+        python
+        print "-- Loading Rust pretty-printers --"
+        import os
+        sys.path.insert(0,os.path.expandvars("$RUSTUP_HOME/toolchains/stable-x86_64-pc-windows-gnu/lib/rustlib/etc"))
+        import gdb_rust_pretty_printing
+        gdb_rust_pretty_printing.register_printers(gdb)
+        print "-- Pretty-printers loaded --"
+        end
+
+2. Set up tasks that will take the test executable targets and copy them to a fixed location, stripping off the guids that are added to them
+    - task to make the directory the files will be copied to:
+        {
+            "label": "Rust: make test executable directory",
+            "identifier": "rust-test-dir",
+            "type": "shell",
+            "command": "New-Item",
+            "args": [
+                "-ItemType",
+                "Directory",
+                "-Force",
+                "-Path",
+                "${workspaceFolder}/target/debug/deps/${workspaceFolderBasename}/tests",
+            ],
+            "options": {
+                "shell": {
+                    "executable": "powershell.exe",
+                    "args": [
+                        "-NoProfile",
+                        "-ExecutionPolicy",
+                        "ByPass"
+                    ]
+                }
+            },
+            "presentation": {
+                "echo": false,
+                "reveal":"silent",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": false,
+            },
+        }
+    - task to actually do the copying (based off this: https://gist.github.com/puffybsd/4dbee720b23c542e11eba90adfc0ce96 but for windows + powershell and not only doing | head n1)
+        - the reference script only generates one file for the workspace, so it's not assuming a multi-project workspace
+        - you could make a module specific task and run it yourself on a particular directory, but this just grabs and moves everything
+        {
+            "label": "Rust: setup test debugging",
+            "type": "shell",
+            "command": "$(cargo test --no-run --message-format=json | jq -r 'select(.profile.test == true) | .filenames[]') | foreach-object {cp $_ ('${workspaceFolder}/target/debug/deps/${workspaceFolderBasename}/tests/'+ $_.split('\\')[-1].split('-')[0] + '.exe') -Recurse -Force }",
+            "dependsOn":[
+                 "rust-test-dir",
+            ],
+            "identifier": "rust-test-copier",
+            "options": {
+                "shell": {
+                    "executable": "powershell.exe",
+                    "args": [
+                        "-NoProfile",
+                        "-ExecutionPolicy",
+                        "ByPass"
+                    ]
+                }
+            },
+            "presentation": {
+                "echo": false,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": false,
+            }
+        }
+3. For any module where tests are being debugged, add a configuration to .vscode/launch.json 
+    {
+            "name": "Tests-uri",
+            "type": "gdb",
+            "request": "launch",
+            "arguments": "",
+            "cwd": "${workspaceRoot}",
+            "target": "${workspaceRoot}\\target\\debug\\deps\\${workspaceRootFolderName}\\tests\\uri.exe",
+            "printCalls": false,
+            "autorun": [
+                "set substitute-path /checkout %RUSTUP_HOME%/toolchains/stable-x86_64-pc-windows-gnu/lib/rustlib/src/rust"
+            ],
+            "preLaunchTask": "rust-test-copier" 
+        }

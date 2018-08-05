@@ -29,7 +29,7 @@ impl RequestV10 {
 
 impl ReadablePacket for RequestV10 {
 
-    fn read<R: Read>(reader: &mut BufReader<R>, header: &Header) -> Result<RequestV10,String> {
+    fn read<R: Read>(reader: &mut BufReader<R>, _header: &Header) -> Result<RequestV10,String> {
         let protocol_version;
         match reader.next_u8() {
             Ok(v) => protocol_version = v,

@@ -42,7 +42,7 @@ impl ColumnCount {
     }
 }
 
-
+#[allow(unused)]
 pub struct ColumnDefinition {
     catalog: LengthEncodedString,
     schema: LengthEncodedString,

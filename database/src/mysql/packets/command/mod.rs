@@ -7,6 +7,8 @@ mod row;
 pub use self::text::*;
 
 
+#[allow(unused)]
+#[allow(non_camel_case_types)]
 enum SupportedCommands {
     //COM_SLEEP,
     COM_QUIT,

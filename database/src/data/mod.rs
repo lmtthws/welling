@@ -23,6 +23,7 @@ pub trait CellReader {
 }
 
 
+#[allow(unused)]
 mod time {
     #[derive(Clone)]
     pub struct Timestamp {

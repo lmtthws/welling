@@ -1,4 +1,4 @@
-use std::io::{BufReader, BufRead, Read, Cursor, Chain};
+use std::io::{BufReader, BufRead, Read};
 use mysql::packets::protocol_types::*;
 use mysql::packets::bytes::Endian;
 

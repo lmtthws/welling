@@ -1,0 +1,63 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Rust: setup test debugging",
+            "type": "shell",
+            "command": "$(cargo test --no-run --message-format=json | jq -r 'select(.profile.test == true) | .filenames[]') | foreach-object {cp $_ ('${workspaceFolder}/target/debug/deps/${workspaceFolderBasename}/tests/'+ $_.split('\\')[-1].split('-')[0] + '.exe') -Recurse -Force }",
+            "dependsOn":[
+                 "rust-test-dir",
+            ],
+            "identifier": "rust-test-copier",
+            "options": {
+                "shell": {
+                    "executable": "powershell.exe",
+                    "args": [
+                        "-NoProfile",
+                        "-ExecutionPolicy",
+                        "ByPass"
+                    ]
+                }
+            },
+            "presentation": {
+                "echo": false,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": false,
+            }
+        },
+        {
+            "label": "Rust: make test executable directory",
+            "identifier": "rust-test-dir",
+            "type": "shell",
+            "command": "New-Item",
+            "args": [
+                "-ItemType",
+                "Directory",
+                "-Force",
+                "-Path",
+                "${workspaceFolder}/target/debug/deps/${workspaceFolderBasename}/tests",
+            ],
+            "options": {
+                "shell": {
+                    "executable": "powershell.exe",
+                    "args": [
+                        "-NoProfile",
+                        "-ExecutionPolicy",
+                        "ByPass"
+                    ]
+                }
+            },
+            "presentation": {
+                "echo": false,
+                "reveal":"silent",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": false,
+            },
+        }, 
+    ]
+}
