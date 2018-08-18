@@ -1,6 +1,6 @@
 
 use http::parser::HttpRequestParser;
-use http::request::StartLine;
+use http::model::*;
 use std::net::TcpStream;
 use std::io::Write;
 
