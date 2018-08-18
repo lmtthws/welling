@@ -4,8 +4,7 @@ use std;
 use std::net::TcpStream;
 use std::io::Read;
 use uri::*;
-use http::request::StartLine;
-use http::request::AllowedMethod;
+use http::model::*;
 use std::time::Duration;
 
 const MAX_START_LEN: usize = 8192;

@@ -17,7 +17,7 @@ macro_rules! declareCode {
 
 
 impl StatusCode {
-    declareCode!(continue,100);
+    declareCode!(continue_code,100);
     declareCode!(switching_protocols,101);
 
 
