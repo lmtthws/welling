@@ -26,9 +26,26 @@
             "target": "${workspaceRoot}\\target\\debug\\deps\\${workspaceRootFolderName}\\tests\\uri.exe",
             "printCalls": false,
             "autorun": [
-                "set substitute-path /checkout %RUSTUP_HOME%/toolchains/stable-x86_64-pc-windows-gnu/lib/rustlib/src/rust"
+                "set substitute-path /checkout %RUSTUP_HOME%/toolchains/stable-x86_64-pc-windows-gnu/lib/rustlib/src"
             ],
             "preLaunchTask": "rust-test-copier" 
+        },
+        {
+            "name": "Tests-database",
+            "type": "gdb",
+            "request": "launch",
+            "arguments": "",
+            "cwd": "${workspaceRoot}",
+            "target": "${workspaceRoot}\\target\\debug\\deps\\${workspaceRootFolderName}\\tests\\database.exe",
+            "printCalls": true,
+            
+            //"autorun": [
+               // "set substitute-path c:/projects $RUSTUP_HOME/toolchains/stable-x86_64-pc-windows-gnu/lib/rustlib/src/rust"
+           // ],
+            "preLaunchTask": "rust-test-copier",
+            "sourceFileMap": {
+                "C:\\projects": "$RUSTUP_HOME/toolchains/stable-x86_64-pc-windows-gnu/lib/rustlib/src"
+            }
         }
     ]
 }
