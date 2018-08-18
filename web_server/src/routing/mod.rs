@@ -1,7 +1,6 @@
 use uri::Uri;
 
-use http::request::StartLine;
-use http::request::AllowedMethod;
+use http::model::*;
 
 //consider integrating constructor with Routable or replacing it
 macro_rules! get {

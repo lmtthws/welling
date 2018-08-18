@@ -16,10 +16,8 @@ mod http;
 
 use routing::Routable;
 
-use http::parser;
 use http::http_context::HttpContext;
-use http::request::StartLine;
-use http::request::AllowedMethod;
+use http::model::*;
 
 fn main() {
 	let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
