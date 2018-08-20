@@ -2,6 +2,7 @@ extern crate uri;
 
 use std;
 use uri::*;
+use response::StatusCode;
 
 //TODO: provide accessors and a constructor 
 #[derive(PartialEq, Debug)]
@@ -28,16 +29,16 @@ impl std::fmt::Display for AllowedMethod {
 }
 
 impl AllowedMethod {
-	pub fn from_utf8(raw_method: String) -> Result<AllowedMethod, (usize, String)> {
+	pub fn from_utf8(raw_method: String) -> Result<AllowedMethod, (StatusCode, String)> {
 
 		if raw_method.len() > 4 {
-			return Result::Err((514, String::from("Method name too long")));
+			return Err((StatusCode::not_implemented(), String::from("Method name too long")));
 		}
 
 		match raw_method.as_ref() {
-			"GET" =>  return Result::Ok(AllowedMethod::GET),
-			"POST" => return Result::Ok(AllowedMethod::POST),
-			_ => return Result::Err((500, String::from("Method not supported")))
+			"GET" =>  return Ok(AllowedMethod::GET),
+			"POST" => return Ok(AllowedMethod::POST),
+			_ => return Err((StatusCode::internal_server_error(), String::from("Method not supported")))
 		}
 	}
 }

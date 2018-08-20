@@ -82,8 +82,8 @@ fn handle_connection(stream: TcpStream) {
 	let mut context = HttpContext::from_stream(stream);
 	match context.get_start_line() {
 		Ok(s) => start_line = s,
-		Err(_) => {
-			let response = format!("{}{}",500,"Unable to parse starting line");
+		Err(r) => {
+			let response = format!("{}",r);
 			context.send_response(response);
 			return;
 		}

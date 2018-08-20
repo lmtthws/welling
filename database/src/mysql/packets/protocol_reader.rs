@@ -61,8 +61,6 @@ impl ProtocolTypeConverter for Vec<u8> {
 }
 
 pub trait ProtocolTypeReader where Self: Sized {
-    type R2;
-
     fn advance(&mut self, len: u8) ->Result<(),String>;
 
     fn next_u8(&mut self) -> Result<u8,String> ;
@@ -78,9 +76,6 @@ pub trait ProtocolTypeReader where Self: Sized {
 }
 
 impl<R> ProtocolTypeReader for BufReader<R> where R: ::std::io::Read { //we can optimize this based on max packet size (16mb or u24)
-    type R2 = BufReader<Box<Read>>;
-
-
     fn advance(&mut self, len: u8) -> Result<(), String> {
         match read_exact(self, len as u32) {
             Ok(_) => Ok(()),
