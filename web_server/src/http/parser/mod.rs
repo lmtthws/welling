@@ -7,6 +7,8 @@ use uri::*;
 use http::model::*;
 use std::time::Duration;
 
+mod grammar;
+
 const MAX_START_LEN: usize = 8192;
 
 pub struct HttpRequestParser {
@@ -109,11 +111,20 @@ impl HttpRequestParser {
 		let mut name_end: usize = MAX_HEADER_LEN + 1;
 		while let Ok(3...MAX_HEADER_LEN) = reader.read_until(b'\n', &mut header_buf) {
 			for ix in 0..header_buf.len() - 1 {
-				if b':' == *header_buf.get(ix).unwrap() {
+				let parse_char = *header_buf.get(ix).unwrap();
+
+				if b':' == parse_char {
 					name_end = ix;
 					break;
+				} else if parse_char == b' ' || parse_char == b'\t' {
+					if ix == 0 {
+						return Err(StatusLine::init(StatusCode::bad_request(), String::from("line folding is obsolete and not accepted")))
+					} else {
+						return Err(StatusLine::init(StatusCode::bad_request(), String::from("invalid whitespace in header field name")))
+					}
 				}
 			}
+
 			if name_end == MAX_HEADER_LEN + 1 {
 				return Err(StatusLine::init(StatusCode::bad_request(), String::from("header field too long")))
 			}
@@ -125,14 +136,22 @@ impl HttpRequestParser {
 				Err(_) => return Err(StatusLine::init(StatusCode::bad_request(), String::from("invalid header field name")))
 			};
 
-			let mut header = headers.get_or_add(&field_name);
+			let mut header = headers.add_or_get_mut(&field_name);
 
-			for val in header_val.split(|c| b' ' == *c || b'\t' == *c) {
-				let val = match String::from_utf8(val.to_vec()) {
-					Ok(v) => v,
-					Err(_) => return Err(StatusLine::init(StatusCode::bad_request(), String::from("invalid header field value")))
-				};
-				header.add(val)
+			let mut value = Vec::new();
+			for c in header_val {
+				if *c == b'"' {
+
+				}
+				else if *c == b' ' || *c == b'\t' {
+					let val = match String::from_utf8(value) {
+						Ok(v) => v,
+						Err(_) => return Err(StatusLine::init(StatusCode::bad_request(), String::from("invalid header field value")))
+					};
+					header.add(val);
+					value = Vec::new();
+				}
+				
 			}
 			
 		}
