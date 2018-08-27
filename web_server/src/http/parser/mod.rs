@@ -8,6 +8,7 @@ use http::model::*;
 use std::time::Duration;
 
 mod grammar;
+use self::grammar::*;
 
 const MAX_START_LEN: usize = 8192;
 
@@ -112,16 +113,18 @@ impl HttpRequestParser {
 		while let Ok(3...MAX_HEADER_LEN) = reader.read_until(b'\n', &mut header_buf) {
 			for ix in 0..header_buf.len() - 1 {
 				let parse_char = *header_buf.get(ix).unwrap();
-
-				if b':' == parse_char {
+				
+				if parse_char.is_header_field_delim() {
 					name_end = ix;
 					break;
-				} else if parse_char == b' ' || parse_char == b'\t' {
+				} else if parse_char.is_whitespace_char() {
 					if ix == 0 {
 						return Err(StatusLine::init(StatusCode::bad_request(), String::from("line folding is obsolete and not accepted")))
 					} else {
 						return Err(StatusLine::init(StatusCode::bad_request(), String::from("invalid whitespace in header field name")))
 					}
+				} else if !parse_char.is_token_char() {
+					return Err(StatusLine::init(StatusCode::bad_request(), String::from("header field name contained non-token character")))
 				}
 			}
 
@@ -131,32 +134,86 @@ impl HttpRequestParser {
 
 			let (header_name, header_val) = header_buf.split_at(name_end);
 			
-			let field_name = match String::from_utf8(header_name.to_vec()) {
-				Ok(n) => n,
-				Err(_) => return Err(StatusLine::init(StatusCode::bad_request(), String::from("invalid header field name")))
-			};
-
-			let mut header = headers.add_or_get_mut(&field_name);
-
-			let mut value = Vec::new();
-			for c in header_val {
-				if *c == b'"' {
-
-				}
-				else if *c == b' ' || *c == b'\t' {
-					let val = match String::from_utf8(value) {
-						Ok(v) => v,
-						Err(_) => return Err(StatusLine::init(StatusCode::bad_request(), String::from("invalid header field value")))
-					};
-					header.add(val);
-					value = Vec::new();
-				}
-				
+			if header_val.len() == 0 {
+				return Err(StatusLine::init(StatusCode::bad_request(), String::from("value was not provided for a header")))
 			}
-			
+
+			let header_name = String::from_utf8(header_name.to_vec()).unwrap(); //this is safe, since we validated that every byte was a valid token character (ASCII subset)
+			let mut header = headers.add_or_get_mut(&header_name);
+			self.read_in_header_val(header_val, header)?
 		}
 
 		Ok(headers)
+	}
+
+	pub(self) fn read_in_header_val(&self, value_chars: &[u8], header: &mut HttpHeader) -> Result<(),StatusLine> {
+		let mut escaping: bool = false;
+		let mut is_quoting: bool = false;
+		let mut comment_depth: u8 = 0;
+		let mut value = Vec::new();
+
+		for c in value_chars {
+			//escape check must come first, as it is valid within quotes or comments
+			if escaping {
+				value.push(*c);
+				escaping = false;
+			} else if c.is_escape_char() {
+				escaping = true;
+			} 
+			
+			//next quoting
+			else if is_quoting {
+				if c.is_dquote_char() {
+					is_quoting = false;
+					header.add(String::from_utf8(value).unwrap());
+					value = Vec::new()
+				} else if c.is_quoted_text() {
+					value.push(*c);
+				} else {
+					return Err(StatusLine::init(StatusCode::bad_request(), String::from("quoted header value contained invalid character")))
+				}
+			} else if c.is_dquote_char() && comment_depth == 0 {
+				is_quoting = true;
+			}
+			  
+			//then comments
+			else if c.is_field_comment_start() {
+				println!("Depth at comment start: {}", comment_depth);
+				value.push(*c);
+				comment_depth += 1;	
+			} else if c.is_field_comment_end() {
+				comment_depth -= 1;
+				println!("Depth after comment end: {}", comment_depth);
+				value.push(*c);
+				
+				if comment_depth == 0 {
+					header.add(String::from_utf8(value).unwrap());
+					value = Vec::new();	
+				}				
+			} else if comment_depth > 0 {
+				if c.is_comment_text() {
+					value.push(*c)
+				} else {
+					return Err(StatusLine::init(StatusCode::bad_request(), String::from("comment contained invalid character")))
+				}
+			}
+
+			//everything else
+			else if c.is_whitespace_char() {
+				header.add(String::from_utf8(value).unwrap());
+				value = Vec::new();
+			} else if c.is_token_char() {
+				value.push(*c);
+			} else {
+				return Err(StatusLine::init(StatusCode::bad_request(), String::from("field value contained invalid character")))
+			}
+		} 
+
+		if is_quoting || escaping || comment_depth > 0 {
+			return Err(StatusLine::init(StatusCode::bad_request(), String::from("comment contained unclosed quote, comment, or escape sequence")))
+		}
+
+		Ok(())
 	}
 
 	pub fn get_request_body(&mut self, stream: &mut TcpStream) {
@@ -170,6 +227,42 @@ impl HttpRequestParser {
 
 		let local_buf = local_buf.to_vec();	
 		println!("{}", String::from_utf8(local_buf.clone()).expect("Failed to read buffer into string"));
+	}
+}
+
+#[allow(non_snake_case)]
+#[cfg(test)]
+mod test {
+	use super::*;
+
+	#[test]
+	fn read_in_header_val__preceding_white_space__value_is_trimmed() {
+		let header_string = String::from("   test test2  test3    ");
+		let mut header = HttpHeader::init("ignored");
+
+		let parser = HttpRequestParser::new();
+		parser.read_in_header_val(header_string.as_ref(), &mut header).unwrap();
+
+		assert_eq!(header.len(), 3);
+		assert_eq!(header.get(0).unwrap(), "test");
+		assert_eq!(header.get(1).unwrap(), "test2");
+		assert_eq!(header.get(2).unwrap(), "test3");
+	}
+
+	#[test]
+	fn read_in_header_val__comment__value_is_comment() {
+		let header_string = String::from(" test (this is a comment(with a nested \"comment\")) ");
+		let mut header = HttpHeader::init("ignored");
+
+		let parser = HttpRequestParser::new();
+		parser.read_in_header_val(header_string.as_ref(), &mut header).unwrap();
+
+		println!("{:?}", header.get_all());
+
+		assert_eq!(header.len(), 2);
+
+		assert_eq!(header.get(0).unwrap(), "test");
+		assert_eq!(header.get(1).unwrap(), "(this is a comment(with a nested \"comment\"))");
 	}
 }
 

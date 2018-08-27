@@ -53,7 +53,7 @@ mod tests {
        
         {
             let header = (&mut headers).get("Host").unwrap();
-            assert_eq!(header.get(), "testVal");
+            assert_eq!(header.get(0).unwrap(), "testVal");
         }
 
 

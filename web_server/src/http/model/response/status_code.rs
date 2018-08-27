@@ -1,5 +1,6 @@
 use std::fmt::{Display, Formatter, Error};
 
+#[derive(Debug)]
 pub struct StatusCode {
     code_class: StatusCodeClass, 
     flavor: u32
@@ -43,7 +44,7 @@ impl StatusCode {
     }
 }
 
-
+#[derive(Debug)]
 pub enum StatusCodeClass {
     Informational,
     Successful,

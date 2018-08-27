@@ -4,14 +4,14 @@ use headers::http_header_type::*;
 #[derive(PartialEq, Debug)]
 pub struct HttpHeader {
     field_name: String,
-    values: String
+    values: Vec<String>
 }
 
 impl HttpHeader {
     pub fn init(field_name: &str) -> HttpHeader {
         HttpHeader {
             field_name: String::from(field_name.to_uppercase()),
-            values: String::new()
+            values: Vec::new()
         }
     }
 
@@ -20,18 +20,21 @@ impl HttpHeader {
     }
 
     pub(crate) fn add(&mut self, value: String) {
-        if self.values.len() > 0 {
-            self.values.push(',');
+        if value.len() > 0 {
+            self.values.push(value)
         }
-        self.values.push_str(value.as_ref())
     }
 
-    pub(crate) fn get(&self) -> &str {
-        self.values.as_ref()
+    pub(crate) fn get(&self, ix: usize) -> Option<&String> {
+        self.values.get(ix)
     }
 
     pub(crate) fn len(&self) -> usize {
         self.values.len()
+    }
+
+    pub(crate) fn get_all(&self) -> &Vec<String> {
+        &self.values
     }
 
     pub fn parse(self) -> HttpHeaderType {
@@ -39,6 +42,8 @@ impl HttpHeader {
         header.parse(self.values);
         header
     }
+
+    //TODO: impl iterator for a wrapper around values indicating quoted/comment/or plain
 }
 
 
@@ -72,7 +77,7 @@ mod tests {
     fn add__arbitrary_value__appended_to_value_list() {
         let mut header = HttpHeader::init("abc123");
         header.add(String::from("vaLue"));
-        assert_eq!(header.get(), "vaLue")
+        assert_eq!(header.get(0).unwrap(), "vaLue")
     }
 
     #[test]
@@ -80,7 +85,17 @@ mod tests {
         let mut header = HttpHeader::init("abc123");
         header.add(String::from("vaLue"));
         header.add(String::from("vaLue2"));
-        assert_eq!(header.get(), "vaLue,vaLue2");
+
+        assert_eq!(header.get(0).unwrap(), "vaLue");
+        assert_eq!(header.get(1).unwrap(), "vaLue2");
+    }
+
+    #[test]
+    fn add__empty_value__not_added() {
+        let mut header = HttpHeader::init("abc123");
+        header.add(String::from(""));
+
+        assert_eq!(header.len(), 0);
     }
 
     #[test]

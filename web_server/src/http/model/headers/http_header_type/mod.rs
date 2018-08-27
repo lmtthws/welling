@@ -22,7 +22,7 @@ impl HttpHeaderType {
         }
     }
 
-    pub fn parse(&mut self, values: String) {
-
+    pub fn parse(&mut self, values: Vec<String>) {
+        //be sure to check for empty value list or values of only comments
     }
 }

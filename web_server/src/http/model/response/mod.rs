@@ -4,6 +4,7 @@ pub use self::status_code::*;
 
 use std::fmt::{Display, Formatter, Error};
 
+#[derive(Debug)]
 pub struct StatusLine {
     major_version: usize,
     minor_version: usize,
