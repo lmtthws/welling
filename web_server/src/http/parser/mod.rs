@@ -264,5 +264,22 @@ mod test {
 		assert_eq!(header.get(0).unwrap(), "test");
 		assert_eq!(header.get(1).unwrap(), "(this is a comment(with a nested \"comment\"))");
 	}
+
+	#[test]
+	fn read_in_header_val__quoted__value_is_quoted() {
+		let header_string = String::from(" test \"this is a quoted string (with a parenthetical)\" test2 ");
+		let mut header = HttpHeader::init("ignored");
+
+		let parser = HttpRequestParser::new();
+		parser.read_in_header_val(header_string.as_ref(), &mut header).unwrap();
+
+		println!("{:?}", header.get_all());
+
+		assert_eq!(header.len(), 2);
+
+		assert_eq!(header.get(0).unwrap(), "test");
+		assert_eq!(header.get(1).unwrap(), "this is a quoted string (with a parenthetical)");
+		assert_eq!(header.get(1).unwrap(), "test2");
+	}
 }
 
