@@ -31,7 +31,9 @@ impl HttpRequestParser {
 		let mut line: Vec<u8>  = Vec::new();
 		let mut line_terminated = false;
 
-		//TODO: handle empty reads from the stream
+		//TODO: handle empty reads from the stream this is tyupo 
+
+		//https://google.compile_error!
 
 		while !line_terminated {
 			if line.len() > MAX_START_LEN {
@@ -41,6 +43,7 @@ impl HttpRequestParser {
 			stream.read(local_buf).unwrap();
 
 			let local_buf = local_buf.to_vec();	
+			let test = local_buf.to_not_defined();
 			println!("{}", String::from_utf8(local_buf.clone()).expect("Failed to read buffer into string"));
 
 			for ix in 0..510 {
