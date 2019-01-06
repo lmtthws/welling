@@ -1,11 +1,9 @@
-extern crate uri;
-
 use std;
 use std::net::TcpStream;
 use std::io::{BufReader, BufRead, Read};
-use uri::*;
-use http::model::*;
 use std::time::Duration;
+use uri::*;
+use crate::http::model::*;
 
 mod grammar;
 use self::grammar::*;
@@ -140,7 +138,7 @@ impl HttpRequestParser {
 
 			let header_name = String::from_utf8(header_name.to_vec()).unwrap(); //this is safe, since we validated that every byte was a valid token character (ASCII subset)
 			let mut header = headers.add_or_get_mut(&header_name);
-			self.read_in_header_val(header_val, header)?
+			self.read_in_header_val(header_val, &mut header)?
 		}
 
 		Ok(headers)

@@ -1,12 +1,14 @@
 use uri::Uri;
 
-use http::model::*;
+use crate::http::model::*;
 
 //consider integrating constructor with Routable or replacing it
+#[macro_export]
 macro_rules! get {
 	($u:expr) => { Routable::get(&$u)};
 }
 
+#[macro_export(crate)]
 macro_rules! post {
 	($u:expr) => {Routable::post(&$u)};
 }

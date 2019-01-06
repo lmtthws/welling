@@ -336,12 +336,12 @@ mod test {
 
     #[test]
     fn obs_text_matches() {
-        let mut range: Vec<char> = (0x80..=0xFF).map(|d| char::from(d)).collect(); //a-z
+        let range: Vec<char> = (0x80..=0xFF).map(|d| char::from(d)).collect(); //a-z
         for c in range {
             assert!(c.is_obs_text_char())
         }
 
-        let mut range: Vec<char> = (0x00..=0x79).map(|d| char::from(d)).collect();
+        let range: Vec<char> = (0x00..=0x79).map(|d| char::from(d)).collect();
         for c in range {
             assert!(!c.is_obs_text_char())
         }
@@ -349,12 +349,12 @@ mod test {
 
     #[test]
     fn obs_text_u8_matches() {
-        let mut range: Vec<u8> = (0x80..=0xFF).collect(); //a-z
+        let range: Vec<u8> = (0x80..=0xFF).collect(); //a-z
         for c in range {
             assert!(c.is_obs_text_char())
         }
 
-        let mut range: Vec<u8> = (0x00..=0x79).collect();
+        let range: Vec<u8> = (0x00..=0x79).collect();
         for c in range {
             assert!(!c.is_obs_text_char())
         }
@@ -362,7 +362,7 @@ mod test {
 
     #[test]
     fn visible_text_matches() {
-        let mut range: Vec<char> = (0x21..=0x7E).map(|u| char::from(u)).collect(); //a-z
+        let range: Vec<char> = (0x21..=0x7E).map(|u| char::from(u)).collect(); //a-z
         for c in range {
             assert!(c.is_visible_char())
         }
@@ -376,7 +376,7 @@ mod test {
 
     #[test]
     fn visible_text_u8_matches() {
-        let mut range: Vec<u8> = (0x21..=0x7E).collect(); //a-z
+        let range: Vec<u8> = (0x21..=0x7E).collect(); //a-z
         for c in range {
             assert!(c.is_visible_char())
         }

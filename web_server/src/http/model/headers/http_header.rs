@@ -1,5 +1,4 @@
-
-use headers::http_header_type::*;
+use crate::headers::http_header_type::*;
 
 #[derive(PartialEq, Debug)]
 pub struct HttpHeader {

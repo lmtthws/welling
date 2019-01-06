@@ -1,4 +1,5 @@
-use data::DataColType;
+use bitflags::bitflags;
+use crate::data::DataColType;
 
 pub enum ColFieldType {
     Decimal,

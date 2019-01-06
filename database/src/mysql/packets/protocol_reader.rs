@@ -1,6 +1,6 @@
 use std::io::{BufReader, BufRead, Read};
-use mysql::packets::protocol_types::*;
-use mysql::packets::bytes::Endian;
+use crate::mysql::packets::protocol_types::*;
+use crate::mysql::packets::bytes::Endian;
 
 //TODO: make the buf reader operations safer - if the stream terminates or the packet is not well formed, things may not go well, especially for read_exact
 

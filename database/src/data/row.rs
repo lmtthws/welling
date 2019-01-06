@@ -1,4 +1,4 @@
-use data::Timestamp;
+use crate::data::types::Timestamp;
 
 pub struct DataRow {
     pub values: Vec<DataCell>
@@ -9,7 +9,6 @@ impl DataRow {
         DataRow{values}
     }
 }
-
 
 pub enum DataCellValue {
     SignedInteger(i64),

@@ -1,11 +1,11 @@
 use std::io::{BufReader, Read};
 use std::cmp;
 
-use mysql::packets::Header;
-use mysql::packets::ReadablePacket;
-use mysql::client::capabilities::Capabilities;
-use mysql::packets::protocol_reader::ProtocolTypeReader;
-use mysql::packets::handshake::authentication::AuthPlugin;
+use crate::mysql::packets::Header;
+use crate::mysql::packets::ReadablePacket;
+use crate::mysql::client::capabilities::Capabilities;
+use crate::mysql::packets::protocol_reader::ProtocolTypeReader;
+use crate::mysql::packets::handshake::authentication::AuthPlugin;
 
 pub struct RequestV10 {
     pub version: u8,

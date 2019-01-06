@@ -1,6 +1,3 @@
-extern crate thread_pool;
-extern crate uri;
-
 use std::fs::File;
 use thread_pool::ThreadPool;
 use std::process;
@@ -10,14 +7,14 @@ use std::io::prelude::*;
 use std::thread;
 use std::time::Duration;
 
-#[macro_use]
-mod routing;
 mod http;
+mod routing;
 
-use routing::Routable;
 
-use http::http_context::HttpContext;
-use http::model::*;
+use crate::routing::*;
+
+use crate::http::http_context::HttpContext;
+use crate::http::model::*;
 
 fn main() {
 	let listener = TcpListener::bind("127.0.0.1:7878").unwrap();

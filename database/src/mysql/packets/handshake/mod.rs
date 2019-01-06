@@ -7,9 +7,9 @@ pub use self::request::RequestV10;
 pub use self::response::Response41;
 
 use ::std::io::{Read, BufReader};
-use mysql::packets::{Header, ReadablePacket};
-use mysql::packets::general_response::{OkPacket41, ErrPacket41};
-use mysql::packets::protocol_reader::ProtocolTypeReader;
+use crate::mysql::packets::{Header, ReadablePacket};
+use crate::mysql::packets::general_response::{OkPacket41, ErrPacket41};
+use crate::mysql::packets::protocol_reader::ProtocolTypeReader;
 
 pub enum HandshakeServerResponse {
     Okay(OkPacket41),

@@ -1,6 +1,6 @@
-use data::DataColumn;
-use mysql::data::column::{ColFieldType, ColumnDefinitionFlags};
-use mysql::packets::*;
+use crate::data::DataColumn;
+use crate::mysql::data::column::{ColFieldType, ColumnDefinitionFlags};
+use crate::mysql::packets::*;
 
 pub enum ResultSetHasMetadata {
     None, //0

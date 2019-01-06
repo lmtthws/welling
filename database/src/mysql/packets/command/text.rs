@@ -1,13 +1,13 @@
 use ::std::io::{Read, BufReader, Cursor, Write, BufWriter};
 use ::std::u8;
 
-use *;
-use mysql::packets::{Header, ReadablePacket};
-use mysql::packets::*;
-use mysql::packets::command::SupportedCommands;
-use mysql::packets::command::column::{ColumnDefinition, ColumnCount};
-use mysql::packets::command::row::ResultSetRow;
-use mysql::packets::protocol_reader;
+use crate::*;
+use crate::mysql::packets::{Header, ReadablePacket};
+use crate::mysql::packets::*;
+use crate::mysql::packets::command::SupportedCommands;
+use crate::mysql::packets::command::column::{ColumnDefinition, ColumnCount};
+use crate::mysql::packets::command::row::ResultSetRow;
+use crate::mysql::packets::protocol_reader;
 
 pub struct QueryRequest {
     server_command: SupportedCommands,

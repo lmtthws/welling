@@ -1,11 +1,9 @@
-extern crate ring;
-extern crate simple_logger;
-
-use mysql::packets;
-use mysql::packets::handshake::AuthPlugin;
 use std::convert::From;
 use std::fmt::{Display, Formatter};
-use {ConnectionInfo};
+use log::debug;
+use crate::mysql::packets;
+use crate::mysql::packets::handshake::AuthPlugin;
+use crate::{ConnectionInfo};
 
 pub enum SupportedAuthMethods {
     Unknown,

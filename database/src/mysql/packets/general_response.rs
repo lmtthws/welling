@@ -1,14 +1,11 @@
-extern crate bitflags;
+use bitflags::bitflags;
 
 use ::std::io::{BufReader, Read,};
 use ::std::fmt::{Display, Formatter, Error};
 
-use mysql::packets::{Header, ReadablePacket};
-use mysql::packets::protocol_types::*;
-use mysql::packets::protocol_reader::ProtocolTypeReader;
-
-
-
+use crate::mysql::packets::{Header, ReadablePacket};
+use crate::mysql::packets::protocol_types::*;
+use crate::mysql::packets::protocol_reader::ProtocolTypeReader;
 
 pub enum GeneralResponses{
     Okay(OkPacket41),

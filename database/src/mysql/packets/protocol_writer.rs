@@ -1,6 +1,6 @@
 use ::std::io::{BufWriter, Write};
-use mysql::packets::protocol_types::*;
-use mysql::packets::bytes::get_bytes;
+use crate::mysql::packets::protocol_types::*;
+use crate::mysql::packets::bytes::get_bytes;
 
 pub trait ProtocolIntConverter<FixedInteger> {
     fn to_fixed_integer(self) -> FixedInteger;

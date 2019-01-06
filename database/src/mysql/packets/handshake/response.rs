@@ -2,9 +2,9 @@ use std::fmt::Error;
 use std::fmt::Formatter;
 use std::io::{BufWriter, Write};
 use std::fmt::Display;
-use mysql::client::capabilities::Capabilities;
-use mysql::packets::WriteablePacket;
-use mysql::packets::protocol_types::*;
+use crate::mysql::client::capabilities::Capabilities;
+use crate::mysql::packets::WriteablePacket;
+use crate::mysql::packets::protocol_types::*;
 
 //verify Capabilities::client_protocol_41 else should do 320, but our server will support 41 and we support 41, so...
 pub struct Response41 {

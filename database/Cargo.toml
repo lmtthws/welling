@@ -2,6 +2,7 @@
 name = "database"
 version = "0.1.0"
 authors = ["lmtth"]
+edition = "2018"
 
 [dependencies]
 ring = "^0"

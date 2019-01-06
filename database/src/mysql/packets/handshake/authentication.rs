@@ -1,6 +1,6 @@
-use mysql::packets::{Header, ReadablePacket, WriteablePacket};
-use mysql::packets::protocol_reader::ProtocolTypeReader;
-use mysql::packets::protocol_types::*;
+use crate::mysql::packets::{Header, ReadablePacket, WriteablePacket};
+use crate::mysql::packets::protocol_reader::ProtocolTypeReader;
+use crate::mysql::packets::protocol_types::*;
 use ::std::io::{Read, Write, BufReader, BufWriter};
 
 pub struct AuthPlugin {

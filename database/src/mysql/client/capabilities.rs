@@ -1,3 +1,5 @@
+use bitflags::bitflags;
+
 bitflags! {
     pub struct Capabilities: u32 {
         const CLIENT_LONG_PASSWORD = 1;

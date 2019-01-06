@@ -1,6 +1,6 @@
 
-use http::parser::HttpRequestParser;
-use http::model::*;
+use crate::http::parser::HttpRequestParser;
+use crate::http::model::*;
 use std::net::TcpStream;
 use std::io::Write;
 

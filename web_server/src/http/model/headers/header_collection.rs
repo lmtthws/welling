@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::collections::hash_map::Values;
-use headers::http_header::*;
-use headers::http_header_type::*;
+use crate::headers::http_header::*;
+use crate::headers::http_header_type::*;
 
 pub struct HeaderCollection {
     headers: HashMap<String, HttpHeader>,

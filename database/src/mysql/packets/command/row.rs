@@ -1,7 +1,7 @@
-use mysql::packets::*;
-use mysql::packets::bytes::Endian;
-use mysql::packets::protocol_reader::ProtocolTypeConverter;
-use data::*;
+use crate::mysql::packets::*;
+use crate::mysql::packets::bytes::Endian;
+use crate::mysql::packets::protocol_reader::ProtocolTypeConverter;
+use crate::data::*;
 
 pub enum RawValue {
     Null,

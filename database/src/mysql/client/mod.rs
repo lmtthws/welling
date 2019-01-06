@@ -1,15 +1,15 @@
 pub mod capabilities;
 pub mod authentication;
 
-use mysql::client::capabilities::Capabilities;
-use mysql::client::authentication::{SupportedAuthMethods, AuthenticationResponse};
-use mysql::packets::handshake::*;
-use mysql::packets::command::*;
-use mysql::packets::*;
+use crate::mysql::client::capabilities::Capabilities;
+use crate::mysql::client::authentication::{SupportedAuthMethods, AuthenticationResponse};
+use crate::mysql::packets::handshake::*;
+use crate::mysql::packets::command::*;
+use crate::mysql::packets::*;
 use ::std::net::{TcpStream,Shutdown};
 use ::std::io::{BufReader,BufWriter};
 use ::std::u8;
-use {DatabaseClient, ConnectionInfo, QueryResult};
+use crate::{DatabaseClient, ConnectionInfo, QueryResult};
 
 pub(crate) struct MySqlClient {
     server_details: ConnectionInfo,

@@ -1,6 +1,5 @@
 mod annotations;
 
-
 #[derive(PartialEq, Eq, Hash, Debug)]
 pub enum HttpHeaderType {
     Host,
@@ -22,7 +21,7 @@ impl HttpHeaderType {
         }
     }
 
-    pub fn parse(&mut self, values: Vec<String>) {
+    pub fn parse(&mut self, _values: Vec<String>) {
         //be sure to check for empty value list or values of only comments
     }
 }

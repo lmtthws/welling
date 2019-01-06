@@ -1,8 +1,6 @@
-extern crate uri;
-
 use std;
 use uri::*;
-use response::StatusCode;
+use crate::response::StatusCode;
 
 //TODO: provide accessors and a constructor 
 #[derive(PartialEq, Debug)]
