@@ -1,0 +1,5 @@
+TODO:
+* Support AJAX requests from web pages for asynchronous actions
+* Start working on a single view using get/post
+* Serialization/Deserialization
+* Test end to end with db?
