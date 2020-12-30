@@ -111,7 +111,7 @@ fn old_password_hash(password: &str) -> [u8;8] {
 }
 
 fn native_password_hash(password: &str, auth_data: &str) -> Result<[u8;20],String> {
-    let pass_hash = ring::digest::digest(&ring::digest::SHA1, password.as_bytes());
+    let pass_hash = ring::digest::digest(&ring::digest::SHA1_FOR_LEGACY_USE_ONLY, password.as_bytes());
     let pass_hash = pass_hash.as_ref();
     
     
@@ -124,11 +124,11 @@ fn native_password_hash(password: &str, auth_data: &str) -> Result<[u8;20],Strin
     server_bytes.extend_from_slice(server_auth_data); //verify 20 bytes of auth data
             
     //concat with the SHA1 hash of the SHA1 hash of the password
-    let hash_of_pass_hash = &ring::digest::digest(&ring::digest::SHA1, &pass_hash[0..]);
+    let hash_of_pass_hash = &ring::digest::digest(&ring::digest::SHA1_FOR_LEGACY_USE_ONLY, &pass_hash[0..]);
     server_bytes.extend_from_slice(hash_of_pass_hash.as_ref()); //20 server bytes + SHA1 of SHA1 of password
 
     //take the sha1 of the concatenation
-    let server_bytes = ring::digest::digest(&ring::digest::SHA1, &server_bytes[0..]);
+    let server_bytes = ring::digest::digest(&ring::digest::SHA1_FOR_LEGACY_USE_ONLY, &server_bytes[0..]);
     let server_bytes = server_bytes.as_ref(); 
 
     //XOR with the original SHA password hash

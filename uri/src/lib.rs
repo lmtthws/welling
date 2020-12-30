@@ -45,7 +45,7 @@ impl Uri {
 				UriComponent::Start => {
 					match c {
 						b'/' => cur_comp = UriComponent::Path,
-						b'A'...b'Z' | b'a'...b'z' => {
+						b'A' ..= b'Z' | b'a'..= b'z' => {
 							cur_comp = UriComponent::Scheme;
 							b.push(c);
 						},
@@ -59,9 +59,9 @@ impl Uri {
 							scheme = Some(String::from_utf8(b.clone()).unwrap());
 							b.clear()
 						},
-						b'a'...b'z' 
-						| b'A'...b'Z' 
-						| b'0'...b'9'  
+						b'a' ..= b'z' 
+						| b'A' ..= b'Z' 
+						| b'0' ..= b'9'  
 						| b'.' 
 						| b'+' 
 						| b'-' => b.push(c),

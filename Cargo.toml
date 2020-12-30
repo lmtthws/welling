@@ -1,5 +1,7 @@
 [workspace]
 members = [
+	"person",
+	"property",
 	"web_server",
 	"thread_pool",
 	"uri",
